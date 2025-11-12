@@ -1,0 +1,73 @@
+{% load static %}
+{% with request.resolver_match.view_name as view_name %}
+<nav class="navbar sticky-top navbar-dark nav-custom">
+  <div class="container-fluid px-3 px-md-5">
+    <a class="navbar-brand" href="{% url 'configuration:index' %}">
+      <img
+        src="{% static 'img/logo_title.png' %}"
+        alt="Истратех"
+        class="d-inline-block align-top"
+        style="max-height: 50px;">
+    </a>
+    <ul class="nav nav-pills">
+    {% if user.is_authenticated %}
+      <li class="nav-item">
+        <a class="nav-link link-light
+          {% if view_name  == 'configuration:my_calculations' %}
+            active
+          {% endif %}"
+          href="{% url 'configuration:my_calculations' user.username %}"
+        >
+          Мои расчеты
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link link-light
+          {% if view_name  == 'configuration:find_calculations' %}
+            active
+          {% endif %}"
+          href="{% url 'configuration:find_calculations' %}"
+        >
+          Поиск
+        </a>
+      </li>
+      <li class="nav-item dropdown">
+        <a class="nav-link link-light dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          {{ user }}
+        </a>
+        <ul class="dropdown-menu"  aria-labelledby="navbarDropdown">
+          {% if user.is_admin %}
+          <li>
+            <a class="dropdown-item" href="{% url 'users:signup' %}">
+              Регистрация пользователя
+            </a>
+          </li>
+          {% endif %}
+          <li>
+            <a class="dropdown-item" href="{% url 'users:password_change' %}">
+              Сменить пароль
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="{% url 'users:logout' %}">
+              Выйти
+            </a>
+          </li>
+        </ul>
+      </li>
+    {% else %}
+      <li class="nav-item">
+        <a class="nav-link link-light
+          {% if view_name  == 'users:login' %}
+            active
+          {% endif %}"
+          href="{% url 'users:login' %}"
+        >
+          Войти
+        </a>
+      </li>
+    {% endif %}
+    </ul>
+  </div>
+</nav>
+{% endwith %}

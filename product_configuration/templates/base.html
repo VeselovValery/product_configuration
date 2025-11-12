@@ -1,0 +1,34 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <link rel="icon" type="image/png" sizes="180x180" href="{% static 'img/logo_327x300.png' %}">
+    <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="{% static 'img/logo_196x180.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/logo_35x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/logo_16x16.png' %}">
+    <meta name="theme-color" content="#ffffff">
+      {% block refresh %}
+      {% endblock %}
+    <title>
+      {% block title %}
+      {% endblock %}
+    </title>
+  </head>
+  <body>
+    <header>
+      {% include 'includes/header.html' %}
+    </header>
+    {% include 'includes/navigation.html' %}
+    <main>
+      {% block content %}
+      {% endblock %}
+    </main>
+    <footer class="border-top text-center py-3">
+      {% include 'includes/footer.html' %}
+    </footer>
+  </body>
+</html>
