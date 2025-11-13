@@ -4,7 +4,7 @@ from django.shortcuts import render, get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import CreateView
 
-from .forms import CreationForm
+from .forms import CreationForm, CustomLoginForm
 
 
 class SignUp(CreateView):
@@ -14,13 +14,14 @@ class SignUp(CreateView):
 
 
 class CustomLogin(LoginView):
+    form_class = CustomLoginForm
 
     def post(self, request, *args, **kwargs):
         form = self.get_form()
         if form.is_valid():
-            username = form.cleaned_data['username']
-            user = get_object_or_404(get_user_model(), username=username)
-            if user.is_working:
+            email = form.cleaned_data['username']
+            user = get_object_or_404(get_user_model(), email=email)
+            if user.is_working and user.is_active:
                 return self.form_valid(form)
             else:
                 return render(request, 'users/login_user_not_working.html')

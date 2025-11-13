@@ -1,6 +1,6 @@
 {% load static %}
 {% with request.resolver_match.view_name as view_name %}
-<nav class="navbar sticky-top navbar-dark nav-custom">
+<nav class="navbar sticky-top navbar-dark bg-custom-blue">
   <div class="container-fluid px-3 px-md-5">
     <a class="navbar-brand" href="{% url 'configuration:index' %}">
       <img
@@ -49,9 +49,12 @@
             </a>
           </li>
           <li>
-            <a class="dropdown-item" href="{% url 'users:logout' %}">
+            <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">
               Выйти
             </a>
+            <form id="logout-form" method="post" action="{% url 'users:logout' %}" style="display: none;">
+              {% csrf_token %}
+            </form>
           </li>
         </ul>
       </li>
