@@ -27,6 +27,7 @@ class CustomUserManager(BaseUserManager):
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('user', 'Пользователь'),
+        ('chief', 'Руководитель'),
         ('admin', 'Администратор'),
         ('fired', 'Уволенный')
     ]
@@ -34,21 +35,21 @@ class User(AbstractUser):
     email = models.EmailField(
         max_length=254,
         unique=True,
-        verbose_name='Электронная почта',
-        help_text='Электронная почта пользователя'
+        verbose_name='Электронная почта'
     )
     first_name = models.CharField(
         max_length=150,
-        verbose_name='Имя пользователя'
+        verbose_name='Имя'
     )
     last_name = models.CharField(
         max_length=150,
-        verbose_name='Фамилия пользователя'
+        verbose_name='Фамилия'
     )
     role = models.CharField(
         max_length=30,
         choices=ROLE_CHOICES,
-        default='user'
+        default='user',
+        verbose_name='Статус'
     )
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = [
@@ -56,10 +57,6 @@ class User(AbstractUser):
         'first_name',
         'last_name'
     ]
-    # ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-    # ACCOUNT_USERNAME_REQUIRED = False
-    # ACCOUNT_EMAIL_REQUIRED = True
-
     objects = CustomUserManager()
 
     class Meta:
@@ -75,4 +72,4 @@ class User(AbstractUser):
 
     @property
     def is_working(self):
-        return self.role == 'user' or self.role == 'admin'
+        return self.role != 'fired'
