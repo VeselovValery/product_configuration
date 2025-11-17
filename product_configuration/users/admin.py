@@ -1,8 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
-EMPTY_FILLING = '-пусто-'
-# User = get_user_model()
+from core.constants import EMPTY_FILLING
 
 
 @admin.register(get_user_model())
