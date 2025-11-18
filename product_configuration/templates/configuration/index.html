@@ -6,5 +6,99 @@
   РАСЧЕТЫ
 {% endblock %}
 {% block content %}
-  ПОКА ПУСТО
+  <div class="row justify-content-center">
+    <div class="col-md-8 p-5">
+      <div class="card text-center border-dark shadow-sm">
+        <h5 class="card-header border-dark text-white bg-custom-blue">НОВЫЙ РАСЧЕТ</h5>
+        <div class="card-body bg-custom-grey">
+          <form method="post" action="{% url 'configuration:basic' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group row my-3">
+              <label for="product-type">
+                  Тип изделия
+              </label>
+              <select class="form-control border-dark" name="product_type" id="product-type">
+                  {% for type in product_types %}
+                      <option value="{{ type.title }}" {% if forloop.first %}selected{% endif %}>{{ type.title }}</option>
+                  {% endfor %}
+              </select>
+              <small id="product-type-help" class="form-text text-muted">
+                <br>
+              </small>
+              <label for="product-type">
+                  Наименование базовой версии продукта
+              </label>
+              <input class="form-control border-dark" type="text" id="base-name" name="base_name" placeholder="Введите наименование базовой версии" disabled>
+              <small id="base-name-help" class="form-text text-muted">
+                <br>
+              </small>
+              <div id="suggestions" style="display:none;">
+                  <ul id="suggestion-list" style="list-style-type: none;"></ul>
+              </div>
+            </div>
+            <button type="submit" id="submit-btn" disabled>Рассчитать</button>
+          </form>
+        </div> <!-- card body -->
+      </div> <!-- card -->
+    </div> <!-- col -->
+  </div> <!-- row -->
+  <script>
+    const baseNameInput = document.getElementById('base-name');
+    const productTypeSelect = document.getElementById('product-type');
+    const suggestionsDiv = document.getElementById('suggestions');
+    const suggestionList = document.getElementById('suggestion-list');
+    const submitBtn = document.getElementById('submit-btn');
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (productTypeSelect.value) {
+            const event = new Event('change');
+            productTypeSelect.dispatchEvent(event);
+        }
+    });
+
+    productTypeSelect.addEventListener('change', function() {
+        if (this.value) {
+            baseNameInput.disabled = false;
+            baseNameInput.value = ''; // очищаем, если был ввод
+            suggestionsDiv.style.display = 'none';
+            submitBtn.disabled = true;
+        } else {
+            baseNameInput.disabled = true;
+            suggestionsDiv.style.display = 'none';
+            submitBtn.disabled = true;
+        }
+    });
+
+    baseNameInput.addEventListener('input', function() {
+        const query = this.value;
+        const typeId = productTypeSelect.value;
+
+        if (query.length < 2 || !typeId) {
+            suggestionsDiv.style.display = 'none';
+            submitBtn.disabled = true;
+            return;
+        }
+
+        fetch(`{% url 'configuration:autocomplete' %}?q=${encodeURIComponent(query)}&type_id=${typeId}`)
+            .then(response => response.json())
+            .then(data => {
+                suggestionList.innerHTML = '';
+                data.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    li.onclick = () => {
+                        baseNameInput.value = item;
+                        suggestionsDiv.style.display = 'none';
+                        submitBtn.disabled = false;
+                    };
+                    suggestionList.appendChild(li);
+                });
+                if (data.length) {
+                    suggestionsDiv.style.display = 'block';
+                } else {
+                    suggestionsDiv.style.display = 'none';
+                }
+            });
+    });
+  </script>
 {% endblock %}
