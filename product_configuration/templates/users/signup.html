@@ -25,7 +25,7 @@
                   {% csrf_token %}
                   {% for field in form %}
                     <div class="form-group row my-3">
-                      <label for="{{ field.id_for_label }}">
+                      <label for="{{ field.id_for_label }}" class="label-bold">
                         {{ field.label }}
                           {% if field.field.required %}
                             <span class="required text-danger">*</span>

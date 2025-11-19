@@ -28,6 +28,9 @@
      font-family: 'Russo One', sans-serif;
      font-weight: normal;
   }
+  .label-bold{
+    font-weight: bold;
+  }
   #suggestion-list li {
     padding: 8px 12px;
     cursor: pointer;
@@ -50,5 +53,25 @@
   }
   #autocomplete-list li:last-child {
     border-bottom: none;
+  }
+  .option-item {
+    border-bottom: 1px solid #000000;
+    padding: 15px 0;
+  }
+  .option-name {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .option-row {
+    display: flex;
+    gap: 15px;
+  }
+  .option-description {
+    flex: 3; /* Шире */
+    font-size: 0.9em;
+    color: #6c757d;
+  }
+  .option-select {
+    flex: 1; /* Уже */
   }
 </style>

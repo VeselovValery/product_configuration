@@ -11,7 +11,7 @@ class ProductType(models.Model):
         unique=True,
         verbose_name='Slug группы продуктов'
     )
-    title = models.TextField(
+    name = models.TextField(
         max_length=200,
         unique=True,
         verbose_name='Наименование группы продуктов',
@@ -28,18 +28,18 @@ class ProductType(models.Model):
         verbose_name = 'Группы продуктов'
 
     def __str__(self):
-        return self.title
+        return self.name
 
 
 class BasicPrice(models.Model):
     product_type = models.ForeignKey(
         ProductType,
-        to_field='title',
+        to_field='name',
         on_delete=models.CASCADE,
         related_name='basic_prices',
         verbose_name='Группа продукта'
     )
-    title = models.TextField(
+    name = models.TextField(
         max_length=200,
         unique=True,
         verbose_name='Наименование базового продукта',
@@ -66,21 +66,26 @@ class BasicPrice(models.Model):
         verbose_name_plural = 'Базовые продукты'
 
     def __str__(self):
-        return self.title
+        return self.name
 
 
 class OptionsPrice(models.Model):
     product_type = models.ForeignKey(
         ProductType,
-        to_field='title',
+        to_field='name',
         on_delete=models.CASCADE,
         related_name='options',
         verbose_name='Группа продукта'
     )
-    title = models.TextField(
+    name = models.TextField(
         max_length=200,
         unique=True,
         verbose_name='Наименование опции',
+    )
+    description = models.TextField(
+        max_length=1024,
+        default='Описание опции',
+        verbose_name='Описание опции',
     )
     part_name = models.CharField(
         max_length=64,
@@ -101,18 +106,26 @@ class OptionsPrice(models.Model):
         verbose_name='Текущий статус опции'
     )
 
+    class Meta:
+        ordering = ['-pk']
+        verbose_name = 'Опция продукта'
+        verbose_name_plural = 'Опции продуктов'
+
+    def __str__(self):
+        return self.name
+
 
 class Configuration(models.Model):
     product_type = models.ForeignKey(
         ProductType,
-        to_field='title',
+        to_field='name',
         on_delete=models.CASCADE,
         related_name='product_configurations',
         verbose_name='Группа продукта'
     )
     basic_product = models.ForeignKey(
         BasicPrice,
-        to_field='title',
+        to_field='name',
         on_delete=models.CASCADE,
         related_name='configurations',
         verbose_name='Базовый продукт'

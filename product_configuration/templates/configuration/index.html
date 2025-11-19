@@ -11,21 +11,21 @@
       <div class="card text-center border-dark shadow-sm">
         <h5 class="card-header border-dark text-white bg-custom-blue">НОВЫЙ РАСЧЕТ</h5>
         <div class="card-body bg-custom-grey">
-          <form method="post" action="{% url 'configuration:basic' %}" enctype="multipart/form-data">
+          <form id="config-form" method="post" action="{% url 'configuration:index' %}" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="form-group row my-3">
-              <label for="product-type">
+              <label for="product-type" class="label-bold">
                   Тип изделия
               </label>
               <select class="form-control border-dark" name="product_type" id="product-type">
                   {% for type in product_types %}
-                      <option value="{{ type.title }}" {% if forloop.first %}selected{% endif %}>{{ type.title }}</option>
+                      <option value="{{ type.name }}" {% if forloop.first %}selected{% endif %}>{{ type.name }}</option>
                   {% endfor %}
               </select>
               <small id="product-type-help" class="form-text text-muted">
                 <br>
               </small>
-              <label for="product-type">
+              <label for="base-name" class="label-bold">
                   Наименование базовой версии продукта
               </label>
               <input class="form-control border-dark" type="text" id="base-name" name="base_name" placeholder="Введите наименование базовой версии" disabled>
@@ -35,9 +35,28 @@
               <div id="suggestions" style="display:none;">
                   <ul id="suggestion-list" style="list-style-type: none;"></ul>
               </div>
+              <label for="product-type" class="label-bold">
+                Опции изделия
+              </label>
+              <div id="options-container">
+                <!-- Сюда подгружаются опции -->
+              </div>
             </div>
-            <button type="submit" id="submit-btn" disabled>Рассчитать</button>
+            <div class="d-flex justify-content-around">
+              <button type="submit" id="submit-btn" class="btn btn-primary text_russo bg-custom-blue" disabled>РАССЧИТАТЬ</button>
+            </div>
           </form>
+          <div id="result-container" style="display: none; margin-top: 30px;" class="card">
+            <div class="card-body">
+                <h5>Результат</h5>
+                <p><strong>Полное наименование:</strong> <span id="full-name"></span></p>
+                <p><strong>Цена:</strong> <span id="total-price"></span> руб.</p>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="result-text" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyResult()">Копировать</button>
+                </div>
+            </div>
+          </div> <!-- result-container -->  
         </div> <!-- card body -->
       </div> <!-- card -->
     </div> <!-- col -->
@@ -48,6 +67,7 @@
     const suggestionsDiv = document.getElementById('suggestions');
     const suggestionList = document.getElementById('suggestion-list');
     const submitBtn = document.getElementById('submit-btn');
+    const optionsContainer = document.getElementById('options-container');
 
     window.addEventListener('DOMContentLoaded', () => {
         if (productTypeSelect.value) {
@@ -59,9 +79,40 @@
     productTypeSelect.addEventListener('change', function() {
         if (this.value) {
             baseNameInput.disabled = false;
-            baseNameInput.value = ''; // очищаем, если был ввод
+            baseNameInput.value = '';
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
+
+            fetch(`{% url 'configuration:options' %}?type_id=${this.value}`)
+            .then(response => response.json())
+            .then(options => {
+              optionsContainer.innerHTML = '';
+              if (options.length === 0) {
+                    optionsContainer.innerHTML = '<p>Нет доступных опций для этого типа продукта.</p>';
+                    return;
+                }
+              options.forEach(opt => {
+                  const div = document.createElement('div');
+                  div.className = 'option-item';
+
+                  let optionsHTML = '';
+                  opt.value.forEach(val => {
+                      optionsHTML += `<option value="${val}">${val}</option>`;
+                  });
+                  div.innerHTML = `
+                      <div class="option-name">${opt.name}</div>
+                      <div class="option-row">
+                          <div class="option-description">${opt.description || ''}</div>
+                          <div class="option-select">
+                              <select name="option_${opt.id}" class="form-control border-dark">
+                                  ${optionsHTML}
+                              </select>
+                          </div>
+                      </div>
+                  `;
+                  optionsContainer.appendChild(div);
+              });
+            });
         } else {
             baseNameInput.disabled = true;
             suggestionsDiv.style.display = 'none';
@@ -99,6 +150,30 @@
                     suggestionsDiv.style.display = 'none';
                 }
             });
+    });
+
+    document.getElementById('config-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      fetch('{% url "configuration:index" %}', {
+          method: 'POST',
+          body: formData,
+          headers: {
+              'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          }
+      })
+      .then(response => response.json())
+      .then(data => {
+            // Показываем результат
+            document.getElementById('full-name').textContent = data.full_name;
+            document.getElementById('total-price').textContent = data.total_price;
+            document.getElementById('result-text').value = `${data.full_name} - ${data.total_price} руб.`;
+
+            document.getElementById('result-container').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+        });
     });
   </script>
 {% endblock %}

@@ -9,11 +9,11 @@ class ProductTypeAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
         'slug',
-        'title',
+        'name',
         'status'
     )
     list_display_links = ('slug',)
-    search_fields = ('slug', 'title')
+    search_fields = ('slug', 'name')
     list_filter = ('status',)
     empty_value_display = EMPTY_FILLING
 
@@ -22,13 +22,13 @@ class ProductTypeAdmin(admin.ModelAdmin):
 class BasicPriceAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
-        'title',
+        'name',
         'product_type',
         'partnumber',
         'price'
     )
-    list_display_links = ('title',)
-    search_fields = ('title', 'partnumber')
+    list_display_links = ('name',)
+    search_fields = ('name', 'partnumber')
     list_filter = ('product_type', 'status')
     empty_value_display = EMPTY_FILLING
 
@@ -37,12 +37,12 @@ class BasicPriceAdmin(admin.ModelAdmin):
 class OptionsPriceAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
-        'title',
+        'name',
         'product_type',
         'price'
     )
-    list_display_links = ('title',)
-    search_fields = ('title', 'part_name')
+    list_display_links = ('name',)
+    search_fields = ('name', 'part_name')
     list_filter = ('product_type', 'status')
     empty_value_display = EMPTY_FILLING
 
