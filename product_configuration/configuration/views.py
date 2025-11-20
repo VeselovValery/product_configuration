@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 
 from .models import ProductType, BasicPrice, OptionsPrice
 
@@ -15,7 +15,7 @@ def index(request):
         for key, value in request.POST.items():
             if key.startswith('option_'):
                 option_id = key.split('_')[1]
-                option_values[option_id] = value
+                option_values[option_id] = int(value)
 
         # Получаем объекты
         product_type = ProductType.objects.get(name=product_type_name)
@@ -31,9 +31,9 @@ def index(request):
                 'name': option.name,
                 'value': value
             })
-            if option.value != 0:
+            if value != 0:
                 full_name_parts.append(option.part_name)
-                total_price += option.price * int(value)
+                total_price += option.price * value
         full_name = ''.join(full_name_parts)
 
         return JsonResponse({

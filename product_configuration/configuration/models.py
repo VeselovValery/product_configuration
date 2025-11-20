@@ -61,7 +61,7 @@ class BasicPrice(models.Model):
     )
 
     class Meta:
-        ordering = ['-pk']
+        ordering = ['pk']
         verbose_name = 'Базовый продукт'
         verbose_name_plural = 'Базовые продукты'
 
@@ -107,9 +107,44 @@ class OptionsPrice(models.Model):
     )
 
     class Meta:
-        ordering = ['-pk']
+        ordering = ['pk']
         verbose_name = 'Опция продукта'
         verbose_name_plural = 'Опции продуктов'
+
+    def __str__(self):
+        return self.name
+
+
+class OptionsGroup(models.Model):
+    product_type = models.ForeignKey(
+        ProductType,
+        to_field='name',
+        on_delete=models.CASCADE,
+        related_name='group_options',
+        verbose_name='Группа продукта'
+    )
+    name = ArrayField(
+        models.CharField(max_length=200),
+        default=list,
+        verbose_name='Возможные варианты группируемых опций (через запятую)',
+    )
+    max_value = models.IntegerField(
+        verbose_name='Максимальное кол-во группируемых опций'
+    )
+    value = ArrayField(
+        models.CharField(max_length=20),
+        default=list,
+        verbose_name='Возможные объемы подключения группируемых опций (через запятую)',
+    )
+    influencing_value = ArrayField(
+        models.CharField(max_length=200),
+        default=list,
+        verbose_name='Влияющие значения',
+    )
+
+    class Meta:
+        ordering = ['pk']
+        verbose_name = 'Группировка опций продукта'
 
     def __str__(self):
         return self.name

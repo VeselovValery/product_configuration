@@ -9,7 +9,7 @@
   <div class="row justify-content-center">
     <div class="col-md-8 p-5">
       <div class="card text-center border-dark shadow-sm">
-        <h5 class="card-header border-dark text-white bg-custom-blue">НОВЫЙ РАСЧЕТ</h5>
+        <h5 class="card-header border-dark text-white bg-custom-blue">КОНФИГУРАЦИЯ НАЗВАНИЯ И ЦЕНЫ ПРОДУКТА</h5>
         <div class="card-body bg-custom-grey">
           <form id="config-form" method="post" action="{% url 'configuration:index' %}" enctype="multipart/form-data">
             {% csrf_token %}
@@ -46,15 +46,10 @@
               <button type="submit" id="submit-btn" class="btn btn-primary text_russo bg-custom-blue" disabled>РАССЧИТАТЬ</button>
             </div>
           </form>
-          <div id="result-container" style="display: none; margin-top: 30px;" class="card">
+          <div id="result-container" style="display: none; margin-top: 20px;" class="card">
             <div class="card-body">
-                <h5>Результат</h5>
-                <p><strong>Полное наименование:</strong> <span id="full-name"></span></p>
-                <p><strong>Цена:</strong> <span id="total-price"></span> руб.</p>
-                <div class="input-group">
-                    <input type="text" class="form-control" id="result-text" readonly>
-                    <button class="btn btn-outline-secondary" type="button" onclick="copyResult()">Копировать</button>
-                </div>
+                <p><span id="full-name" class="label-bold"></span></p>
+                <p><span id="total-price" class="label-bold"></span> <strong>руб.</strong></p>
             </div>
           </div> <!-- result-container -->  
         </div> <!-- card body -->
@@ -68,6 +63,7 @@
     const suggestionList = document.getElementById('suggestion-list');
     const submitBtn = document.getElementById('submit-btn');
     const optionsContainer = document.getElementById('options-container');
+    let currentSuggestions = [];
 
     window.addEventListener('DOMContentLoaded', () => {
         if (productTypeSelect.value) {
@@ -82,6 +78,7 @@
             baseNameInput.value = '';
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
+            currentSuggestions = [];
 
             fetch(`{% url 'configuration:options' %}?type_id=${this.value}`)
             .then(response => response.json())
@@ -117,6 +114,7 @@
             baseNameInput.disabled = true;
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
+            currentSuggestions = [];
         }
     });
 
@@ -127,12 +125,14 @@
         if (query.length < 2 || !typeId) {
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
+            currentSuggestions = [];
             return;
         }
 
         fetch(`{% url 'configuration:autocomplete' %}?q=${encodeURIComponent(query)}&type_id=${typeId}`)
             .then(response => response.json())
             .then(data => {
+                currentSuggestions = data;
                 suggestionList.innerHTML = '';
                 data.forEach(item => {
                     const li = document.createElement('li');
@@ -146,10 +146,37 @@
                 });
                 if (data.length) {
                     suggestionsDiv.style.display = 'block';
+                    if (currentSuggestions.includes(query)) {
+                        suggestionsDiv.style.display = 'none';
+                        submitBtn.disabled = false;
+                    } else {
+                        suggestionsDiv.style.display = 'block';
+                        submitBtn.disabled = true;
+                    }
                 } else {
                     suggestionsDiv.style.display = 'none';
+                    submitBtn.disabled = true;
                 }
             });
+    });
+
+    // Добавляем обработчик на удаление символов
+    baseNameInput.addEventListener('input', function() {
+        const query = this.value;
+
+        // Если текущие подсказки содержат введённое значение — активируем кнопку
+        if (currentSuggestions.includes(query)) {
+            suggestionsDiv.style.display = 'none';
+            submitBtn.disabled = false;
+        } else {
+            // Если нет — показываем подсказки и деактивируем кнопку
+            if (query.length >= 2 && currentSuggestions.length > 0) {
+                suggestionsDiv.style.display = 'block';
+            } else {
+                suggestionsDiv.style.display = 'none';
+            }
+            submitBtn.disabled = true;
+        }
     });
 
     document.getElementById('config-form').addEventListener('submit', function(e) {
@@ -167,13 +194,43 @@
             // Показываем результат
             document.getElementById('full-name').textContent = data.full_name;
             document.getElementById('total-price').textContent = data.total_price;
-            document.getElementById('result-text').value = `${data.full_name} - ${data.total_price} руб.`;
 
             document.getElementById('result-container').style.display = 'block';
         })
-        .catch(error => {
-            console.error('Ошибка:', error);
+      .catch(error => {
+          console.error('Ошибка:', error);
+      });
+    });
+    let currentIndex = -1;
+
+    function highlight(index) {
+        const items = suggestionList.querySelectorAll('li');
+        items.forEach((li, i) => {
+            li.style.backgroundColor = (i === index) ? '#d0e8ff' : '';
         });
+    }
+
+    baseNameInput.addEventListener('keydown', (e) => {
+        const items = suggestionList.querySelectorAll('li');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (currentIndex < items.length - 1) {
+                currentIndex++;
+            }
+            highlight(currentIndex);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (currentIndex > 0) {
+                currentIndex--;
+            }
+            highlight(currentIndex);
+        } else if (e.key === 'Enter' && currentIndex >= 0) {
+            e.preventDefault();
+            baseNameInput.value = items[currentIndex].textContent;
+            suggestionsDiv.style.display = 'none';
+            submitBtn.disabled = false;
+            currentIndex = -1;
+        }
     });
   </script>
 {% endblock %}
