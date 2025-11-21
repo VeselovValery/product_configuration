@@ -147,7 +147,20 @@ class OptionsGroup(models.Model):
         verbose_name = 'Группировка опций продукта'
 
     def __str__(self):
-        return self.name
+        """
+        Возвращаем человеко-читаемое строковое представление.
+        Поле `name` является ArrayField, поэтому по умолчанию это список.
+        Для отображения в админке берём первое значение (если есть),
+        иначе объединяем все элементы через запятую, а при пустом списке
+        возвращаем понятный маркер с ID объекта.
+        """
+        if isinstance(self.name, list):
+            if not self.name:
+                return f'Группа опций #{self.pk}'
+            # Показываем первый элемент как основное имя
+            return self.name[0]
+        # На случай, если в будущем тип поля изменится
+        return str(self.name)
 
 
 class Configuration(models.Model):

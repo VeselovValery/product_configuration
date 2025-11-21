@@ -63,12 +63,212 @@
     const suggestionList = document.getElementById('suggestion-list');
     const submitBtn = document.getElementById('submit-btn');
     const optionsContainer = document.getElementById('options-container');
+    const optionsDataMap = {};
     let currentSuggestions = [];
+
+    function asArray(value) {
+        if (Array.isArray(value)) {
+            return value;
+        }
+        if (value === undefined || value === null || value === '') {
+            return [];
+        }
+        return [value];
+    }
+
+    function getDescriptionForName(optionData, nameValue) {
+        if (!optionData) {
+            return '';
+        }
+        const names = asArray(optionData.name);
+        const descriptions = asArray(optionData.description);
+        if (!names.length) {
+            return descriptions[0] || '';
+        }
+        const index = names.indexOf(nameValue);
+        if (index !== -1) {
+            return descriptions[index] || '';
+        }
+        return descriptions[0] || '';
+    }
 
     window.addEventListener('DOMContentLoaded', () => {
         if (productTypeSelect.value) {
             const event = new Event('change');
             productTypeSelect.dispatchEvent(event);
+        }
+    });
+
+    // Хранилище для отслеживания количества добавленных опций
+    const optionCounts = {};
+
+    // Функция для создания HTML одного элемента опции
+    function createOptionHTML(opt, instanceIndex = 0) {
+        const optionKey = String(opt.id);
+        const optionId = `${optionKey}_${instanceIndex}`;
+        
+        // Обработка поля name: если массив с 2+ значениями - select, иначе - div
+        let nameHTML = '';
+        const nameArray = asArray(opt.name);
+        
+        if (nameArray.length > 1) {
+            let nameOptionsHTML = '';
+            nameArray.forEach((nameVal, idx) => {
+                nameOptionsHTML += `<option value="${nameVal}" ${idx === 0 ? 'selected' : ''}>${nameVal}</option>`;
+            });
+            nameHTML = `
+                <div class="option-name-block">
+                    <select name="option_name_${optionId}" class="form-control border-dark option-name-select">
+                        ${nameOptionsHTML}
+                    </select>
+                </div>
+            `;
+        } else {
+            const displayName = nameArray.length > 0 ? nameArray[0] : (opt.name || '');
+            // Добавляем скрытое поле для отправки имени, если оно одно
+            nameHTML = `
+                <div class="option-name-block option-name">
+                    ${displayName}
+                </div>
+                <input type="hidden" name="option_name_${optionId}" value="${displayName}">
+            `;
+        }
+
+        const currentName = nameArray.length > 0 ? nameArray[0] : (opt.name || '');
+        const currentDescription = getDescriptionForName(opt, currentName);
+
+        // Обработка поля value (остается как было)
+        let valueOptionsHTML = '';
+        if (opt.value && Array.isArray(opt.value)) {
+            opt.value.forEach(val => {
+                valueOptionsHTML += `<option value="${val}">${val}</option>`;
+            });
+        }
+
+        // Определение, показывать ли кнопки Add/Delete
+        const maxValue = Number(opt.max_value) || 0;
+        const currentCount = optionCounts[optionKey] || 1;
+        const showAddBtn = maxValue > 0 && currentCount < maxValue;
+        const showDeleteBtn = currentCount > 1;
+
+        let buttonsHTML = '<div class="option-buttons" style="margin-top: 5px;">';
+        if (showAddBtn) {
+            buttonsHTML += `<button type="button" class="btn btn-primary text_russo bg-custom-blue add-option-btn" data-option-id="${opt.id}">ДОБАВИТЬ</button> `;
+        }
+        if (showDeleteBtn) {
+            buttonsHTML += `<button type="button" class="btn btn-primary text_russo bg-custom_terra delete-option-btn" data-option-instance="${optionId}">УДАЛИТЬ</button>`;
+        }
+        buttonsHTML += '</div>';
+
+        return `
+            <div class="option-item" data-option-id="${optionKey}" data-instance-id="${optionId}">
+                ${nameHTML}
+                <div class="option-row">
+                    <div class="option-description">
+                        ${currentDescription || ''}
+                    </div>
+                    <div class="option-select">
+                        <select name="option_${optionId}" class="form-control border-dark">
+                            ${valueOptionsHTML}
+                        </select>
+                    </div>
+                </div>
+                ${buttonsHTML}
+            </div>
+        `;
+    }
+
+    // Функция для добавления новой копии опции
+    function addOptionInstance(optionKey, optionData) {
+        if (!optionCounts[optionKey]) {
+            optionCounts[optionKey] = 1;
+        }
+        optionCounts[optionKey]++;
+        
+        const instanceIndex = optionCounts[optionKey] - 1;
+        const newOptionHTML = createOptionHTML(optionData, instanceIndex);
+        
+        // Найти родительский контейнер опций с таким optionId (только блоки .option-item)
+        const existingOptions = document.querySelectorAll(`.option-item[data-option-id="${optionKey}"]`);
+        const lastOption = existingOptions[existingOptions.length - 1];
+        lastOption.insertAdjacentHTML('afterend', newOptionHTML);
+        
+        // Обновить все опции с этим optionId (чтобы обновить кнопки)
+        refreshOptionButtons(optionKey, optionData);
+    }
+
+    // Функция для удаления экземпляра опции
+    function deleteOptionInstance(instanceId, optionKey, optionData) {
+        const instanceElement = document.querySelector(`[data-instance-id="${instanceId}"]`);
+        if (instanceElement && optionCounts[optionKey] > 1) {
+            instanceElement.remove();
+            optionCounts[optionKey]--;
+            refreshOptionButtons(optionKey, optionData);
+        }
+    }
+
+    // Функция для обновления кнопок Add/Delete всех экземпляров опции
+    function refreshOptionButtons(optionKey, optionData) {
+        // Обновляем кнопки только внутри контейнеров .option-item
+        const instances = document.querySelectorAll(`.option-item[data-option-id="${optionKey}"]`);
+        const currentCount = optionCounts[optionKey] || 1;
+        const maxValue = Number(optionData.max_value) || 0;
+        
+        instances.forEach((instance, index) => {
+            const buttonsContainer = instance.querySelector('.option-buttons');
+            if (buttonsContainer) {
+                const showAddBtn = maxValue > 0 && currentCount < maxValue;
+                const showDeleteBtn = currentCount > 1;
+                
+                let buttonsHTML = '';
+                if (showAddBtn) {
+                    buttonsHTML += `<button type="button" class="btn btn-primary text_russo bg-custom-blue add-option-btn" data-option-id="${optionKey}">ДОБАВИТЬ</button> `;
+                }
+                if (showDeleteBtn) {
+                    const instanceId = instance.getAttribute('data-instance-id');
+                    buttonsHTML += `<button type="button" class="btn btn-primary text_russo bg-custom_terra delete-option-btn" data-option-instance="${instanceId}">УДАЛИТЬ</button>`;
+                }
+                buttonsContainer.innerHTML = buttonsHTML;
+            }
+        });
+    }
+
+    // Обработчики событий для кнопок Add/Delete (делегирование событий)
+    optionsContainer.addEventListener('click', function(e) {
+        if (e.target.classList.contains('add-option-btn')) {
+            const optionKey = e.target.getAttribute('data-option-id');
+            const optionData = optionsDataMap[optionKey];
+            if (optionData) {
+                addOptionInstance(optionKey, optionData);
+            }
+        } else if (e.target.classList.contains('delete-option-btn')) {
+            const instanceId = e.target.getAttribute('data-option-instance');
+            const instanceElement = document.querySelector(`[data-instance-id="${instanceId}"]`);
+            const optionKey = instanceElement.getAttribute('data-option-id');
+            const optionData = optionsDataMap[optionKey];
+            if (optionData) {
+                deleteOptionInstance(instanceId, optionKey, optionData);
+            }
+        }
+    });
+
+    optionsContainer.addEventListener('change', function(e) {
+        if (e.target.classList.contains('option-name-select')) {
+            const optionItem = e.target.closest('.option-item');
+            if (!optionItem) {
+                return;
+            }
+            const optionKey = optionItem.getAttribute('data-option-id');
+            const optionData = optionsDataMap[optionKey];
+            if (!optionData) {
+                return;
+            }
+            const selectedName = e.target.value;
+            const description = getDescriptionForName(optionData, selectedName);
+            const descriptionElement = optionItem.querySelector('.option-description');
+            if (descriptionElement) {
+                descriptionElement.textContent = description || '';
+            }
         }
     });
 
@@ -79,6 +279,10 @@
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
             currentSuggestions = [];
+            
+            // Очистить счетчики опций
+            Object.keys(optionCounts).forEach(key => delete optionCounts[key]);
+            Object.keys(optionsDataMap).forEach(key => delete optionsDataMap[key]);
 
             fetch(`{% url 'configuration:options' %}?type_id=${this.value}`)
             .then(response => response.json())
@@ -88,26 +292,14 @@
                     optionsContainer.innerHTML = '<p>Нет доступных опций для этого типа продукта.</p>';
                     return;
                 }
+              // Сохранить данные опций для последующего использования
               options.forEach(opt => {
-                  const div = document.createElement('div');
-                  div.className = 'option-item';
-
-                  let optionsHTML = '';
-                  opt.value.forEach(val => {
-                      optionsHTML += `<option value="${val}">${val}</option>`;
-                  });
-                  div.innerHTML = `
-                      <div class="option-name">${opt.name}</div>
-                      <div class="option-row">
-                          <div class="option-description">${opt.description || ''}</div>
-                          <div class="option-select">
-                              <select name="option_${opt.id}" class="form-control border-dark">
-                                  ${optionsHTML}
-                              </select>
-                          </div>
-                      </div>
-                  `;
-                  optionsContainer.appendChild(div);
+                  const optionKey = String(opt.id);
+                  optionsDataMap[optionKey] = opt;
+                  optionCounts[optionKey] = 1;
+                  
+                  const optionHTML = createOptionHTML(opt, 0);
+                  optionsContainer.insertAdjacentHTML('beforeend', optionHTML);
               });
             });
         } else {
