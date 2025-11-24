@@ -1,7 +1,4 @@
 {% extends 'base.html' %}
-{% block refresh %}
-  <meta http-equiv="refresh" content="300">
-{% endblock %}
 {% block title %}
   РАСЧЕТЫ
 {% endblock %}
@@ -15,7 +12,7 @@
             {% csrf_token %}
             <div class="form-group row my-3">
               <label for="product-type" class="label-bold">
-                  Тип изделия
+                  Тип продукта
               </label>
               <select class="form-control border-dark" name="product_type" id="product-type">
                   {% for type in product_types %}
@@ -36,7 +33,7 @@
                   <ul id="suggestion-list" style="list-style-type: none;"></ul>
               </div>
               <label for="product-type" class="label-bold">
-                Опции изделия
+                Опции продукта
               </label>
               <div id="options-container">
                 <!-- Сюда подгружаются опции -->
@@ -63,6 +60,9 @@
     const suggestionList = document.getElementById('suggestion-list');
     const submitBtn = document.getElementById('submit-btn');
     const optionsContainer = document.getElementById('options-container');
+    const resultContainer = document.getElementById('result-container');
+    const fullNameElement = document.getElementById('full-name');
+    const totalPriceElement = document.getElementById('total-price');
     const optionsDataMap = {};
     let currentSuggestions = [];
 
@@ -74,6 +74,18 @@
             return [];
         }
         return [value];
+    }
+
+    function resetResultContainer() {
+        if (fullNameElement) {
+            fullNameElement.textContent = '';
+        }
+        if (totalPriceElement) {
+            totalPriceElement.textContent = '';
+        }
+        if (resultContainer) {
+            resultContainer.style.display = 'none';
+        }
     }
 
     function getDescriptionForName(optionData, nameValue) {
@@ -273,6 +285,7 @@
     });
 
     productTypeSelect.addEventListener('change', function() {
+        resetResultContainer();
         if (this.value) {
             baseNameInput.disabled = false;
             baseNameInput.value = '';
@@ -284,7 +297,7 @@
             Object.keys(optionCounts).forEach(key => delete optionCounts[key]);
             Object.keys(optionsDataMap).forEach(key => delete optionsDataMap[key]);
 
-            fetch(`{% url 'configuration:options' %}?type_id=${this.value}`)
+            fetch(`{% url 'configuration:get_options' %}?type_id=${this.value}`)
             .then(response => response.json())
             .then(options => {
               optionsContainer.innerHTML = '';
@@ -311,6 +324,7 @@
     });
 
     baseNameInput.addEventListener('input', function() {
+        resetResultContainer();
         const query = this.value;
         const typeId = productTypeSelect.value;
 
@@ -333,6 +347,7 @@
                         baseNameInput.value = item;
                         suggestionsDiv.style.display = 'none';
                         submitBtn.disabled = false;
+                        resetResultContainer();
                     };
                     suggestionList.appendChild(li);
                 });

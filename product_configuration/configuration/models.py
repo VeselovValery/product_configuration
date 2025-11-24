@@ -190,7 +190,6 @@ class Configuration(models.Model):
     )
     name = models.TextField(
         max_length=512,
-        unique=True,
         verbose_name='Наименование конечного продукта',
     )
     cost = models.IntegerField(

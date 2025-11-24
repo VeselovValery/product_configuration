@@ -2,77 +2,64 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 
-from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup
+from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup, Configuration
 
 
 @login_required(login_url='auth/login/', redirect_field_name='')
 def index(request):
     if request.method == 'POST':
-        product_type_name = request.POST.get('product_type')
-        base_name = request.POST.get('base_name')
-
-        # Обработка опций с новой структурой (option_${optionId}_${instanceIndex})
+        product_type = ProductType.objects.get(name=request.POST.get('product_type'))
+        basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
+        # Обработка опций
         option_values = {}
         option_names = {}
         for key, value in request.POST.items():
             if key.startswith('option_') and not key.startswith('option_name_'):
+                # Значение объема подключаемой опции
                 # Формат: option_${optionId}_${instanceIndex} или option_${optionId}
                 parts = key.split('_')
                 if len(parts) >= 2:
-                    option_id = parts[1]
-                    instance_index = parts[2] if len(parts) > 2 else '0'
-                    instance_key = f"{option_id}_{instance_index}"
-                    try:
-                        option_values[instance_key] = int(value)
-                    except (ValueError, IndexError):
-                        pass
+                    instance_key = f'{parts[1]}_{parts[2] if len(parts) > 2 else "0"}'
+                    option_values[instance_key] = int(value)
             elif key.startswith('option_name_'):
+                # Название подключаемой опции
                 # Формат: option_name_${optionId}_${instanceIndex}
                 parts = key.split('_')
                 if len(parts) >= 3:
-                    option_id = parts[2]
-                    instance_index = parts[3] if len(parts) > 3 else '0'
-                    instance_key = f"{option_id}_{instance_index}"
+                    instance_key = f'{parts[2]}_{parts[3] if len(parts) > 3 else "0"}'
                     option_names[instance_key] = value
-
-        # Получаем объекты
-        product_type = ProductType.objects.get(name=product_type_name)
-        basic_product = BasicPrice.objects.get(name=base_name)
-        full_name_parts = [basic_product.name]
-        total_price = basic_product.price
-
-        # Получаем опции из OptionsGroup
-        selected_options = []
-        
+        full_name_parts = [basic_product.name]  # Составное имя
+        total_price = basic_product.price  # Цена опционального оборудования
+        # Подгружаем выбранные опции из OptionsPrice
+        value_selected_options = dict()
+        selected_options = list()
         for instance_key, value in option_values.items():
-            option_id = instance_key.split('_')[0]
-            
-            # Получаем имя опции (либо из select, либо первое из массива)
-            option_name = option_names.get(instance_key, None)
-            option = OptionsGroup.objects.get(id=option_id)
-            
-            if option_name is None and option.name and len(option.name) > 0:
-                option_name = option.name[0]
-            
-            selected_options.append({
-                'id': option_id,
-                'name': option_name or str(option),
-                'value': value
-            })
-            
-            # Примечание: OptionsGroup не имеет полей price и part_name,
-            # поэтому расчет цены и формирование имени может потребовать дополнительной логики
-            # Пока оставляем базовую структуру
             if value != 0:
-                # Если нужна цена/part_name, их нужно добавить в модель или использовать связь с OptionsPrice
-                pass
-
+                option_name = option_names.get(instance_key, None)
+                option = OptionsPrice.objects.get(name=option_name)
+                if option not in selected_options:
+                    selected_options.append(option)
+                if option_name not in value_selected_options:
+                    value_selected_options[option_name] = 0
+                value_selected_options[option_name] += value
+                total_price += (option.price * value)
+                if option.part_name not in full_name_parts:
+                    full_name_parts.append(option.part_name)
+        # Формирование наименования опционального изделия
         full_name = ''.join(full_name_parts)
-
+        # Запись данных о расчете
+        config = Configuration.objects.create(
+            product_type=product_type,
+            basic_product=basic_product,
+            name=full_name,
+            cost=total_price,
+            author=request.user,
+        )
+        config.options.set(selected_options)
+        config.options_value = [f'{key} - {value}' for key, value in value_selected_options.items()]
+        config.save()
+        # Возврат названия и цены продукции
         return JsonResponse({
-            'product_type': product_type.name,
-            'base_name': base_name,
-            'selected_options': selected_options,
             'full_name': full_name,
             'total_price': total_price
         })
@@ -84,10 +71,10 @@ def index(request):
 def autocomplete_base_products(request):
     query = request.GET.get('q', '')
     type_id = request.GET.get('type_id', '')
-
+    # Если кол-во введеных символов меньше 2 или не введен Тип продукта
     if len(query) < 2 or not type_id:
         return JsonResponse([], safe=False)
-
+    # Подбираем список продуктов
     products = BasicPrice.objects.filter(
         name__icontains=query,
         product_type_id=type_id
@@ -103,16 +90,13 @@ def get_options(request):
     options = list(OptionsGroup.objects.filter(product_type__name=type_id))
     if not options:
         return JsonResponse([], safe=False)
-
     # Собираем все возможные имена опций, чтобы получить описания из OptionsPrice
     option_names = set()
     for option in options:
         option_names.update(option.name or [])
-
     descriptions_map = dict(
         OptionsPrice.objects.filter(name__in=option_names).values_list('name', 'description')
     )
-
     serialized = []
     for option in options:
         name_list = option.name or []
@@ -124,17 +108,8 @@ def get_options(request):
             'max_value': option.max_value,
             'value': option.value or [],
         })
-
     return JsonResponse(serialized, safe=False)
-
-
-def create_basic(request):
-    return render(request, 'configuration/index.html')
 
 
 def my_calculations(request):
     return render(request, 'configuration/my_calculation.html')
-
-
-def find_calculations(request):
-    return render(request, 'configuration/find.html')
