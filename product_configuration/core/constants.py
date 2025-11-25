@@ -5,3 +5,15 @@ STATUS_CHOICES = [
 ]
 # Запись в БД с отсутствием данных
 EMPTY_FILLING = '-пусто-'
+# Таблицы для администрирования БД
+TABLE_CHOICES = [
+    ('ProductType', 'Тип продукта'),
+    ('BasicPrice', 'Базовый продукт'),
+    ('OptionsPrice', 'Опции продукта'),
+    ('OptionsGroup', 'Групировка опций')
+]
+# Действия для администрирования БД
+OPERATION_CHOICES = [
+    ('create', 'Создать'),
+    ('update', 'Обновить')
+]

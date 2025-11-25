@@ -71,5 +71,9 @@ class User(AbstractUser):
         return self.role == 'admin'
 
     @property
+    def is_chief(self):
+        return self.role == 'chief'
+
+    @property
     def is_working(self):
         return self.role != 'fired'

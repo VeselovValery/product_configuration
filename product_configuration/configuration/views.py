@@ -1,8 +1,23 @@
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.shortcuts import render, get_object_or_404
+import csv
+import io
 
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse, HttpResponseRedirect
+from django.shortcuts import render
+from django.views.generic import ListView
+
+from .forms import UploadCSVForm
 from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup, Configuration
+
+
+MODEL_MAP = {
+    'ProductType': ProductType,
+    'BasicPrice': BasicPrice,
+    'OptionsPrice': OptionsPrice,
+    'OptionsGroup': OptionsGroup
+}
 
 
 @login_required(login_url='auth/login/', redirect_field_name='')
@@ -111,5 +126,51 @@ def get_options(request):
     return JsonResponse(serialized, safe=False)
 
 
-def my_calculations(request):
-    return render(request, 'configuration/my_calculation.html')
+class MyCalculations(LoginRequiredMixin, ListView):
+    login_url = 'auth/login/'
+    redirect_field_name = ''
+    template_name = 'configuration/my_calculation.html'
+
+    def get_queryset(self):
+        return Configuration.objects.filter(author__pk=self.kwargs['pk']).select_related(
+            'product_type',
+            'author'
+        )
+
+
+@login_required(login_url='auth/login/', redirect_field_name='')
+def upload_data(request):
+    if request.method == 'POST':
+        form = UploadCSVForm(request.POST, request.FILES)
+        if form.is_valid():
+            table_name = form.cleaned_data['table']
+            operation = form.cleaned_data['operation']
+            file = request.FILES['file']
+            model_class = MODEL_MAP.get(table_name)
+            if not model_class:
+                messages.error(request, 'Неизвестная таблица.')
+                return render(request, 'configuration/upload_data.html', {'form': form})
+            try:
+                decoded_file = file.read().decode('utf-8')
+                io_string = io.StringIO(decoded_file)
+                reader = csv.DictReader(io_string)
+
+                created_count = 0
+                updated_count = 0
+                for row in reader:
+                    if operation == 'create':
+                        model_class.objects.create(**row)
+                        created_count += 1
+                    elif operation == 'update':
+                        lookup_field = 'name'  # или другое уникальное поле
+                        lookup_value = row.get(lookup_field)
+                        if lookup_value:
+                            model_class.objects.filter(**{lookup_field: lookup_value}).update(**{k: v for k, v in row.items() if k != lookup_field})
+                            updated_count += 1
+                messages.success(request, f'Загружено: {created_count} создано, {updated_count} обновлено.')
+                return HttpResponseRedirect(request.META.get('HTTP_REFERER', '/'))
+            except Exception as e:
+                messages.error(request, f'Ошибка при обработке файла: {str(e)}')
+    else:
+        form = UploadCSVForm()
+    return render(request, 'configuration/upload_data.html', {'form': form})

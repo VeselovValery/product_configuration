@@ -94,10 +94,10 @@ class OptionsPrice(models.Model):
     price = models.IntegerField(
         verbose_name='Цена опции в руб. без НДС'
     )
-    value = ArrayField(
-        models.CharField(max_length=20),
+    coefficients = ArrayField(
+        models.CharField(max_length=200),
         default=list,
-        verbose_name='Возможные объемы подключения опций (через запятую)',
+        verbose_name='Коэффициенты для умножения',
     )
     status = models.CharField(
         max_length=30,
@@ -135,11 +135,6 @@ class OptionsGroup(models.Model):
         models.CharField(max_length=20),
         default=list,
         verbose_name='Возможные объемы подключения группируемых опций (через запятую)',
-    )
-    influencing_value = ArrayField(
-        models.CharField(max_length=200),
-        default=list,
-        verbose_name='Влияющие значения',
     )
 
     class Meta:

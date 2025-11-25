@@ -11,16 +11,6 @@
     </a>
     <ul class="nav nav-pills">
     {% if user.is_authenticated %}
-      <li class="nav-item">
-        <a class="nav-link link-light
-          {% if view_name  == 'configuration:my_calculations' %}
-            active
-          {% endif %}"
-          href="{% url 'configuration:my_calculations' user.username %}"
-        >
-          Мои расчеты
-        </a>
-      </li>
       <li class="nav-item dropdown me-3">
         <a class="nav-link link-light dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
           {{ user }}
@@ -33,6 +23,18 @@
             </a>
           </li>
           {% endif %}
+          {% if user.is_chief or user.is_admin %}
+          <li class="nav-item">
+            <a class="dropdown-item" href="{% url 'configuration:upload_data' %}">
+              Обновление БД
+            </a>
+          </li>
+          {% endif %}
+          <li>
+            <a class="dropdown-item" href="{% url 'configuration:my_calculations' user.pk %}">
+              Мои расчеты
+            </a>
+          </li>
           <li>
             <a class="dropdown-item" href="{% url 'users:password_change' %}">
               Сменить пароль
