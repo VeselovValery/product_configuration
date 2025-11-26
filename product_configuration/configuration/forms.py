@@ -1,20 +1,24 @@
 from django import forms
 
-from core.constants import TABLE_CHOICES, OPERATION_CHOICES
+from core.constants import TABLE_CHOICES
 
 
 class UploadCSVForm(forms.Form):
     table = forms.ChoiceField(
         choices=TABLE_CHOICES,
         label='Таблица БД',
-        help_text='Выберите таблицу БД для создания/обновления данных'
-    )
-    operation = forms.ChoiceField(
-        choices=OPERATION_CHOICES,
-        label='Операция с БД',
-        help_text='Выберите операцию для действия над БД'
+        help_text='Выберите таблицу БД для обновления данных'
     )
     file = forms.FileField(
         label='CSV файл',
-        help_text='Выбери CSV файл с данными'
+        help_text='Выбери CSV файл с данными',
+        widget=forms.ClearableFileInput(attrs={'accept': '.csv'})
     )
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data['file']
+        if uploaded_file:
+            filename = uploaded_file.name.lower()
+            if not filename.endswith('.csv'):
+                raise forms.ValidationError('Разрешены только файлы с расширением .csv')
+        return uploaded_file

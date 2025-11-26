@@ -44,11 +44,13 @@
               </div>
             </form>
             {% if messages %}
-              <ul class="messages">
-                  {% for message in messages %}
-                      <li {% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
-                  {% endfor %}
-              </ul>
+              {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}alert-danger
+                  {% elif message.tags == 'success' %}alert-success
+                  {% endif %} mt-3">
+                  {{ message }}
+                </div>
+              {% endfor %}
             {% endif %}
         </div> <!-- card body -->
       </div> <!-- card -->

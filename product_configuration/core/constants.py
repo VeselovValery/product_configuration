@@ -12,8 +12,3 @@ TABLE_CHOICES = [
     ('OptionsPrice', 'Опции продукта'),
     ('OptionsGroup', 'Групировка опций')
 ]
-# Действия для администрирования БД
-OPERATION_CHOICES = [
-    ('create', 'Создать'),
-    ('update', 'Обновить')
-]

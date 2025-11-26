@@ -144,30 +144,40 @@ def upload_data(request):
         form = UploadCSVForm(request.POST, request.FILES)
         if form.is_valid():
             table_name = form.cleaned_data['table']
-            operation = form.cleaned_data['operation']
             file = request.FILES['file']
             model_class = MODEL_MAP.get(table_name)
             if not model_class:
                 messages.error(request, 'Неизвестная таблица.')
                 return render(request, 'configuration/upload_data.html', {'form': form})
             try:
-                decoded_file = file.read().decode('utf-8')
+                decoded_file = file.read().decode('utf-8-sig')
                 io_string = io.StringIO(decoded_file)
-                reader = csv.DictReader(io_string)
-
-                created_count = 0
-                updated_count = 0
-                for row in reader:
-                    if operation == 'create':
-                        model_class.objects.create(**row)
-                        created_count += 1
-                    elif operation == 'update':
-                        lookup_field = 'name'  # или другое уникальное поле
-                        lookup_value = row.get(lookup_field)
-                        if lookup_value:
-                            model_class.objects.filter(**{lookup_field: lookup_value}).update(**{k: v for k, v in row.items() if k != lookup_field})
-                            updated_count += 1
-                messages.success(request, f'Загружено: {created_count} создано, {updated_count} обновлено.')
+                reader = csv.DictReader(io_string, delimiter=';')
+                rows = list(reader)
+                slug_list = [row.get('slug') for row in rows if row.get('slug')]
+                existing = {obj.slug: obj for obj in model_class.objects.filter(slug__in=slug_list)}
+                lookup_field = 'slug'
+                created_objects = []
+                updated_objects = []
+                for row in rows:
+                    lookup_value = row.get(lookup_field)
+                    if lookup_value:
+                        if lookup_value in existing:
+                            obj = existing[lookup_value]
+                            for field, value in row.items():
+                                if field != lookup_field:
+                                    setattr(obj, field, value)
+                            updated_objects.append(obj)
+                        else:
+                            obj = model_class(**row)
+                            created_objects.append(obj)
+                if created_objects:
+                    model_class.objects.bulk_create(created_objects)
+                if updated_objects:
+                    model_class.objects.bulk_update(updated_objects, [
+                        f.name for f in model_class._meta.fields if f.name not in (lookup_field, model_class._meta.pk.name)
+                    ], batch_size=1000)
+                messages.success(request, f'Создано: {len(created_objects)}, Обновлено: {len(updated_objects)}.')
                 return HttpResponseRedirect(request.META.get('HTTP_REFERER', '/'))
             except Exception as e:
                 messages.error(request, f'Ошибка при обработке файла: {str(e)}')
