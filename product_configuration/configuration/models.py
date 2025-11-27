@@ -39,11 +39,6 @@ class BasicPrice(models.Model):
         related_name='basic_prices',
         verbose_name='Группа продукта'
     )
-    slug = models.SlugField(
-        max_length=100,
-        unique=True,
-        verbose_name='Slug базового продукта'
-    )
     name = models.TextField(
         max_length=200,
         unique=True,
@@ -81,11 +76,6 @@ class OptionsPrice(models.Model):
         on_delete=models.CASCADE,
         related_name='options',
         verbose_name='Группа продукта'
-    )
-    slug = models.SlugField(
-        max_length=100,
-        unique=True,
-        verbose_name='Slug опции'
     )
     name = models.TextField(
         max_length=200,
@@ -132,11 +122,6 @@ class OptionsGroup(models.Model):
         on_delete=models.CASCADE,
         related_name='group_options',
         verbose_name='Группа продукта'
-    )
-    slug = models.SlugField(
-        max_length=100,
-        unique=True,
-        verbose_name='Slug группировки опции'
     )
     name = ArrayField(
         models.CharField(max_length=200),

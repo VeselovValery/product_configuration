@@ -16,7 +16,7 @@
               </label>
               <select class="form-control border-dark" name="product_type" id="product-type">
                   {% for type in product_types %}
-                      <option value="{{ type.name }}" {% if forloop.first %}selected{% endif %}>{{ type.name }}</option>
+                      <option value="{{ type.slug }}" {% if forloop.first %}selected{% endif %}>{{ type.name }}</option>
                   {% endfor %}
               </select>
               <small id="product-type-help" class="form-text text-muted">
@@ -297,7 +297,7 @@
             Object.keys(optionCounts).forEach(key => delete optionCounts[key]);
             Object.keys(optionsDataMap).forEach(key => delete optionsDataMap[key]);
 
-            fetch(`{% url 'configuration:get_options' %}?type_id=${this.value}`)
+            fetch(`{% url 'configuration:get_options' %}?type_slug=${this.value}`)
             .then(response => response.json())
             .then(options => {
               optionsContainer.innerHTML = '';
@@ -326,16 +326,16 @@
     baseNameInput.addEventListener('input', function() {
         resetResultContainer();
         const query = this.value;
-        const typeId = productTypeSelect.value;
+        const type_slug = productTypeSelect.value;
 
-        if (query.length < 2 || !typeId) {
+        if (query.length < 2 || !type_slug) {
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
             currentSuggestions = [];
             return;
         }
 
-        fetch(`{% url 'configuration:autocomplete' %}?q=${encodeURIComponent(query)}&type_id=${typeId}`)
+        fetch(`{% url 'configuration:autocomplete' %}?q=${encodeURIComponent(query)}&type_slug=${type_slug}`)
             .then(response => response.json())
             .then(data => {
                 currentSuggestions = data;

@@ -1,14 +1,16 @@
 import csv
 import io
+import os
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse, HttpResponseRedirect
+from django.db import connection
+from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
 from django.shortcuts import render
 from django.views.generic import ListView
 
-from .forms import UploadCSVForm
+from .forms import UploadCSVForm, ExportCSVForm
 from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup, Configuration
 
 
@@ -23,7 +25,7 @@ MODEL_MAP = {
 @login_required(login_url='auth/login/', redirect_field_name='')
 def index(request):
     if request.method == 'POST':
-        product_type = ProductType.objects.get(name=request.POST.get('product_type'))
+        product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
         basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
         # Обработка опций
         option_values = {}
@@ -85,27 +87,23 @@ def index(request):
 
 def autocomplete_base_products(request):
     query = request.GET.get('q', '')
-    type_id = request.GET.get('type_id', '')
-    # Если кол-во введеных символов меньше 2 или не введен Тип продукта
-    if len(query) < 2 or not type_id:
+    type_slug = request.GET.get('type_slug', '')
+    if len(query) < 2 or not type_slug:
         return JsonResponse([], safe=False)
-    # Подбираем список продуктов
     products = BasicPrice.objects.filter(
         name__icontains=query,
-        product_type_id=type_id
+        product_type_id=type_slug
     ).values_list('name', flat=True)[:10]
     return JsonResponse(list(products), safe=False)
 
 
 def get_options(request):
-    type_id = request.GET.get('type_id')
-    if not type_id:
+    type_slug = request.GET.get('type_v')
+    if not type_slug:
         return JsonResponse([], safe=False)
-    # Используем product_type__name так как ForeignKey указывает на поле name
-    options = list(OptionsGroup.objects.filter(product_type__name=type_id))
+    options = list(OptionsGroup.objects.filter(product_type__slug=type_slug))
     if not options:
         return JsonResponse([], safe=False)
-    # Собираем все возможные имена опций, чтобы получить описания из OptionsPrice
     option_names = set()
     for option in options:
         option_names.update(option.name or [])
@@ -148,34 +146,36 @@ def upload_data(request):
             model_class = MODEL_MAP.get(table_name)
             if not model_class:
                 messages.error(request, 'Неизвестная таблица.')
-                return render(request, 'configuration/upload_data.html', {'form': form})
+                return render(request, 'configuration/data_base.html', {'form': form})
             try:
                 decoded_file = file.read().decode('utf-8-sig')
                 io_string = io.StringIO(decoded_file)
                 reader = csv.DictReader(io_string, delimiter=';')
                 rows = list(reader)
-                slug_list = [row.get('slug') for row in rows if row.get('slug')]
-                existing = {obj.slug: obj for obj in model_class.objects.filter(slug__in=slug_list)}
-                lookup_field = 'slug'
+                id_list = [row.get('id') for row in rows if row.get('id')]
+                existing = {obj.id: obj for obj in model_class.objects.filter(id__in=id_list)}
+                lookup_field = 'id'
                 created_objects = []
                 updated_objects = []
                 for row in rows:
-                    lookup_value = row.get(lookup_field)
-                    if lookup_value:
-                        if lookup_value in existing:
-                            obj = existing[lookup_value]
-                            for field, value in row.items():
-                                if field != lookup_field:
-                                    setattr(obj, field, value)
-                            updated_objects.append(obj)
-                        else:
-                            obj = model_class(**row)
-                            created_objects.append(obj)
+                    lookup_value = int(row.get(lookup_field))
+                    if 'product_type' in row:
+                        product_type_slug = row['product_type'].strip()
+                        row['product_type'] = ProductType.objects.get(slug=product_type_slug)
+                    if lookup_value in existing:
+                        obj = existing[lookup_value]
+                        for field, value in row.items():
+                            if field != lookup_field:
+                                setattr(obj, field, value)
+                        updated_objects.append(obj)
+                    else:
+                        obj = model_class(**{key: value for key, value in row.items() if key != lookup_field})
+                        created_objects.append(obj)
                 if created_objects:
                     model_class.objects.bulk_create(created_objects)
                 if updated_objects:
                     model_class.objects.bulk_update(updated_objects, [
-                        f.name for f in model_class._meta.fields if f.name not in (lookup_field, model_class._meta.pk.name)
+                        f.name for f in model_class._meta.fields if f.name != lookup_field
                     ], batch_size=1000)
                 messages.success(request, f'Создано: {len(created_objects)}, Обновлено: {len(updated_objects)}.')
                 return HttpResponseRedirect(request.META.get('HTTP_REFERER', '/'))
@@ -183,4 +183,37 @@ def upload_data(request):
                 messages.error(request, f'Ошибка при обработке файла: {str(e)}')
     else:
         form = UploadCSVForm()
-    return render(request, 'configuration/upload_data.html', {'form': form})
+    return render(request, 'configuration/data_base.html', {'form': form})
+
+
+@login_required(login_url='auth/login/', redirect_field_name='')
+def export_data(request):
+    if request.method == 'POST':
+        form = ExportCSVForm(request.POST)
+        if form.is_valid():
+            table_name = form.cleaned_data['table']
+            model_class = MODEL_MAP.get(table_name)
+            if not model_class:
+                messages.error(request, 'Неизвестная таблица.')
+                return render(request, 'configuration/data_base.html', {'form': form})
+            queryset = model_class.objects.all()
+            field_names = [f.name for f in model_class._meta.fields]
+            response = HttpResponse(content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="{table_name}.csv"'
+            response.write('\ufeff')
+            writer = csv.writer(response, delimiter=';')
+            writer.writerow(field_names)
+            for obj in queryset:
+                row = []
+                for field_name in field_names:
+                    if field_name == 'product_type':
+                        related_obj = getattr(obj, field_name)
+                        value = getattr(related_obj, 'slug', '') if related_obj else ''
+                    else:
+                        value = getattr(obj, field_name)
+                    row.append(value)
+                writer.writerow(row)
+            return response
+    else:
+        form = ExportCSVForm()
+    return render(request, 'configuration/data_base.html', {'form': form})

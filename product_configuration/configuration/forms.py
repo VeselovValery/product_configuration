@@ -22,3 +22,16 @@ class UploadCSVForm(forms.Form):
             if not filename.endswith('.csv'):
                 raise forms.ValidationError('Разрешены только файлы с расширением .csv')
         return uploaded_file
+
+
+class ExportCSVForm(forms.Form):
+    table = forms.ChoiceField(
+        choices=TABLE_CHOICES,
+        label='Таблица БД',
+        help_text='Выберите таблицу БД для выгрузки данных'
+    )
+    # folder_path = forms.CharField(
+    #     max_length=500,
+    #     label='Путь к папке для сохранения',
+    #     widget=forms.TextInput(attrs={'placeholder': '/path/to/folder'})
+    # )

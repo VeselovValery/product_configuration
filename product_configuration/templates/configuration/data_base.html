@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}
+  Администрирование БД
+{% endblock %}
+{% block content %}
+  {% with request.resolver_match.view_name as view_name %}
+  <div class="row justify-content-center">
+    <div class="col-md-8 p-5">
+      <div class="card text-center border-dark shadow-sm">
+        <h5 class="card-header border-dark text-white bg-custom-blue">ОБНОВЛЕНИЕ БАЗЫ ДАННЫХ</h5>
+          <ul class="nav nav-tabs">
+              <li class="nav-item">
+                <a
+                        class="nav-link nav-link_1
+                        {% if view_name  == 'configuration:upload_data' %}
+                          active
+                        {% endif %}"
+                        href="{% url 'configuration:upload_data' %}"
+                        style="border: 0px; color: #0C3354;"
+                >Обновить</a>
+              </li>
+              <li class="nav-item">
+                <a
+                        class="nav-link nav-link_1
+                        {% if view_name  == 'configuration:export_data' %}
+                          active
+                        {% endif %}"
+                        href="{% url 'configuration:export_data' %}"
+                        style="border: 0px; color: #0C3354;"
+                >Выгрузить</a>
+              </li>
+          </ul>
+          <div class="tab-content" style="background-color: #edeeed;">
+              {% if view_name  == 'configuration:upload_data' %}
+                {% include 'includes/upload_data.html' %}
+              {% elif view_name  == 'configuration:export_data' %}
+                {% include 'includes/export_data.html' %}
+              {% endif %}
+          </div>
+      </div> <!-- card -->
+    </div> <!-- col -->
+  </div> <!-- row -->
+  {% endwith %}
+{% endblock %}

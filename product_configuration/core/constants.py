@@ -7,7 +7,6 @@ STATUS_CHOICES = [
 EMPTY_FILLING = '-пусто-'
 # Таблицы для администрирования БД
 TABLE_CHOICES = [
-    ('ProductType', 'Тип продукта'),
     ('BasicPrice', 'Базовый продукт'),
     ('OptionsPrice', 'Опции продукта'),
     ('OptionsGroup', 'Групировка опций')
