@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup, Configuration
+from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup, Configuration, OptionsCoef
 from core.constants import EMPTY_FILLING
 
 
@@ -47,18 +47,32 @@ class OptionsPriceAdmin(admin.ModelAdmin):
     empty_value_display = EMPTY_FILLING
 
 
+@admin.register(OptionsCoef)
+class OptionsCoefAdmin(admin.ModelAdmin):
+    list_display = (
+        'pk',
+        'title',
+        'product_type',
+        'option',
+        'name_coef'
+    )
+    list_display_links = ('title',)
+    search_fields = ('title',)
+    list_filter = ('product_type', 'option')
+    empty_value_display = EMPTY_FILLING
+
+
 @admin.register(OptionsGroup)
 class OptionsGroupAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
-        'name',
+        'title',
         'product_type',
-        'max_value',
-        'value'
+        'max_value'
     )
-    list_display_links = ('name',)
-    search_fields = ('name',)
-    list_filter = ('product_type',)
+    list_display_links = ('title',)
+    search_fields = ('title',)
+    list_filter = ('product_type', 'options')
     empty_value_display = EMPTY_FILLING
 
 

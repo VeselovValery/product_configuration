@@ -1,6 +1,6 @@
 import csv
 import io
-import os
+import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -98,28 +98,30 @@ def autocomplete_base_products(request):
 
 
 def get_options(request):
-    type_slug = request.GET.get('type_v')
+    type_slug = request.GET.get('type_slug')
     if not type_slug:
         return JsonResponse([], safe=False)
-    options = list(OptionsGroup.objects.filter(product_type__slug=type_slug))
-    if not options:
+    groups_option = list(OptionsGroup.objects.filter(product_type__slug=type_slug))
+    if not groups_option:
         return JsonResponse([], safe=False)
     option_names = set()
-    for option in options:
-        option_names.update(option.name or [])
+    for group in groups_option:
+        for option in group.options.all():
+            option_names.add(option.name)
     descriptions_map = dict(
         OptionsPrice.objects.filter(name__in=option_names).values_list('name', 'description')
     )
     serialized = []
-    for option in options:
-        name_list = option.name or []
+    for group in groups_option:
+        # name_list = option.name or []
+        name_list = [option.name for option in group.options.all()]
         description_list = [descriptions_map.get(name, '') for name in name_list]
         serialized.append({
-            'id': option.id,
+            'id': group.id,
             'name': name_list,
             'description': description_list,
-            'max_value': option.max_value,
-            'value': option.value or [],
+            'max_value': group.max_value,
+            'value': group.value or [],
         })
     return JsonResponse(serialized, safe=False)
 
@@ -162,6 +164,9 @@ def upload_data(request):
                     if 'product_type' in row:
                         product_type_slug = row['product_type'].strip()
                         row['product_type'] = ProductType.objects.get(slug=product_type_slug)
+                    if 'values' in row:
+                        value_coefficients = row['values']
+                        row['values'] = json.loads(value_coefficients) if value_coefficients else []
                     if lookup_value in existing:
                         obj = existing[lookup_value]
                         for field, value in row.items():
@@ -209,6 +214,8 @@ def export_data(request):
                     if field_name == 'product_type':
                         related_obj = getattr(obj, field_name)
                         value = getattr(related_obj, 'slug', '') if related_obj else ''
+                    elif field_name == 'coefficients':
+                        value = json.dumps(getattr(obj, field_name))
                     else:
                         value = getattr(obj, field_name)
                     row.append(value)

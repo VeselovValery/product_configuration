@@ -25,7 +25,8 @@ class ProductType(models.Model):
 
     class Meta:
         ordering = ['pk']
-        verbose_name = 'Группы продуктов'
+        verbose_name = 'Группа продукта'
+        verbose_name_plural = 'Группы продуктов'
 
     def __str__(self):
         return self.name
@@ -79,7 +80,6 @@ class OptionsPrice(models.Model):
     )
     name = models.TextField(
         max_length=200,
-        unique=True,
         verbose_name='Наименование опции',
     )
     description = models.TextField(
@@ -89,15 +89,15 @@ class OptionsPrice(models.Model):
     )
     part_name = models.CharField(
         max_length=64,
-        verbose_name='Часть имени для формирования наименования конечного продукта'
+        verbose_name='Код опции'
     )
     price = models.IntegerField(
         verbose_name='Цена опции в руб. без НДС'
     )
-    coefficients = ArrayField(
-        models.CharField(max_length=200),
+    values = ArrayField(
+        models.IntegerField(),
         default=list,
-        verbose_name='Коэффициенты для умножения',
+        verbose_name='Объемы подключения опции',
     )
     status = models.CharField(
         max_length=30,
@@ -108,11 +108,45 @@ class OptionsPrice(models.Model):
 
     class Meta:
         ordering = ['pk']
+        unique_together = ('product_type', 'name')
         verbose_name = 'Опция продукта'
         verbose_name_plural = 'Опции продуктов'
 
     def __str__(self):
         return self.name
+
+
+class OptionsCoef(models.Model):
+    title = models.TextField(
+        max_length=200,
+        unique=True,
+        verbose_name='Названия коэффициента опции',
+    )
+    product_type = models.ForeignKey(
+        ProductType,
+        to_field='slug',
+        on_delete=models.CASCADE,
+        related_name='options_coef',
+        verbose_name='Группа продукта'
+    )
+    option = models.ForeignKey(
+        OptionsPrice,
+        on_delete=models.CASCADE,
+        related_name='options_coef',
+        verbose_name='Группа продукта'
+    )
+    name_coef = models.CharField(
+        max_length=200,
+        verbose_name='Наименование коэффициента',
+    )
+
+    class Meta:
+        ordering = ['pk']
+        verbose_name = 'Коэффициент опции'
+        verbose_name_plural = 'Коэффициенты опций'
+
+    def __str__(self):
+        return self.title
 
 
 class OptionsGroup(models.Model):
@@ -123,52 +157,49 @@ class OptionsGroup(models.Model):
         related_name='group_options',
         verbose_name='Группа продукта'
     )
-    name = ArrayField(
-        models.CharField(max_length=200),
-        default=list,
-        verbose_name='Возможные варианты группируемых опций (через запятую)',
+    title = models.TextField(
+        max_length=200,
+        unique=True,
+        verbose_name='Названия группы опций',
+    )
+    # options = ArrayField(
+    #     models.CharField(max_length=200),
+    #     default=list,
+    #     verbose_name='Возможные варианты группируемых опций (через запятую)',
+    # )
+    options = models.ManyToManyField(
+        OptionsPrice,
+        related_name='options_group',
+        verbose_name='Опции входящие в группу'
     )
     max_value = models.IntegerField(
         verbose_name='Максимальное кол-во группируемых опций'
     )
     value = ArrayField(
-        models.CharField(max_length=20),
+        models.IntegerField(),
         default=list,
-        verbose_name='Возможные объемы подключения группируемых опций (через запятую)',
+        verbose_name='Объемы подключения опций, входящих в группу',
     )
 
     class Meta:
         ordering = ['pk']
-        verbose_name = 'Группировка опций продукта'
+        verbose_name = 'Группа опций продукта'
+        verbose_name_plural = 'Группы опций продуктай'
 
     def __str__(self):
-        """
-        Возвращаем человеко-читаемое строковое представление.
-        Поле `name` является ArrayField, поэтому по умолчанию это список.
-        Для отображения в админке берём первое значение (если есть),
-        иначе объединяем все элементы через запятую, а при пустом списке
-        возвращаем понятный маркер с ID объекта.
-        """
-        if isinstance(self.name, list):
-            if not self.name:
-                return f'Группа опций #{self.pk}'
-            # Показываем первый элемент как основное имя
-            return self.name[0]
-        # На случай, если в будущем тип поля изменится
-        return str(self.name)
+        return self.title
 
 
 class Configuration(models.Model):
     product_type = models.ForeignKey(
         ProductType,
-        to_field='name',
+        to_field='slug',
         on_delete=models.CASCADE,
         related_name='product_configurations',
         verbose_name='Группа продукта'
     )
     basic_product = models.ForeignKey(
         BasicPrice,
-        to_field='name',
         on_delete=models.CASCADE,
         related_name='configurations',
         verbose_name='Базовый продукт'
@@ -181,14 +212,14 @@ class Configuration(models.Model):
     options_value = ArrayField(
         models.CharField(max_length=256),
         default=list,
-        verbose_name='Объем каждой опции (список)'
+        verbose_name='Объем подключения опций (список)'
     )
     name = models.TextField(
         max_length=512,
         verbose_name='Наименование конечного продукта',
     )
     cost = models.IntegerField(
-        verbose_name='Стоимость конечного продукта в руб. без НДС'
+        verbose_name='Стоимость конечного продукта '
     )
     author = models.ForeignKey(
         get_user_model(),
