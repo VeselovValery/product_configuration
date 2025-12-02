@@ -9,17 +9,71 @@ from django.db import connection
 from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
 from django.shortcuts import render
 from django.views.generic import ListView
+from django.core.exceptions import ValidationError
 
 from .forms import UploadCSVForm, ExportCSVForm
-from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup, Configuration
+from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Configuration, \
+    OptionsConstraint  # OptionsGroup,
+from core.constants import STATUS_CHOICES
 
-
+# Таблицы для загрузки и выгрузки
 MODEL_MAP = {
-    'ProductType': ProductType,
     'BasicPrice': BasicPrice,
-    'OptionsPrice': OptionsPrice,
-    'OptionsGroup': OptionsGroup
+    'OptionsProfile': OptionsProfile,
+    'OptionsPrice': OptionsPrice
 }
+# Таблица замены похожих русских букв на английские для поиска
+RUS_TO_LAT_TRANSLATION = str.maketrans({
+    'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H',
+    'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y', 'Х': 'X',
+    'а': 'a', 'в': 'b', 'е': 'e', 'к': 'k', 'м': 'm', 'н': 'h',
+    'о': 'o', 'р': 'p', 'с': 'c', 'т': 't', 'у': 'y', 'х': 'x',
+})
+
+
+def normalize_for_search(text: str) -> str:
+    """Нормализует строку для поиска:
+    - заменяет похожие русские буквы на английские
+    - приводит к нижнему регистру
+    """
+    if not text:
+        return ''
+    return text.translate(RUS_TO_LAT_TRANSLATION).lower()
+
+
+def normalize_status(raw_status: str) -> str:
+    """Приводит строку статуса из CSV к валидному коду из STATUS_CHOICES.
+    Если значение пустое или не распознано, возвращает 'active'.
+    """
+    if raw_status is None:
+        return 'active'
+    raw = raw_status.strip()
+    if not raw:
+        return 'active'
+    # Словари для поиска по коду и по отображаемому значению
+    code_by_code = {code.lower(): code for code, _ in STATUS_CHOICES}
+    code_by_label = {label.lower(): code for code, label in STATUS_CHOICES}
+    lower = raw.lower()
+    # Если пришёл уже корректный код ('active' / 'closed')
+    if lower in code_by_code:
+        return code_by_code[lower]
+    # Если пришло отображаемое значение ('Действующий' / 'Закрытый')
+    if lower in code_by_label:
+        return code_by_label[lower]
+    # Фоллбек по умолчанию
+    return 'active'
+
+
+def validate_constraints(product_type, option_values):
+    # option_values: dict[slug] -> int
+    constraints = OptionsConstraint.objects.filter(product_type=product_type)
+    for constraint in constraints.prefetch_related('options'):
+        related_slugs = {opt.slug for opt in constraint.options.all()}
+        total = sum(value for slug, value in option_values.items() if slug in related_slugs)
+        if total > constraint.max_total_value:
+            raise ValidationError(
+                f'Суммарный объём для {constraint.title} не может быть больше {constraint.max_total_value}.'
+            )
 
 
 @login_required(login_url='auth/login/', redirect_field_name='')
@@ -27,41 +81,39 @@ def index(request):
     if request.method == 'POST':
         product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
         basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
-        # Обработка опций
+        # Обработка опций: каждая опция представлена одним select-элементом
+        # с именем вида "option_<slug_опции>" и значением – выбранным объемом.
         option_values = {}
-        option_names = {}
         for key, value in request.POST.items():
-            if key.startswith('option_') and not key.startswith('option_name_'):
-                # Значение объема подключаемой опции
-                # Формат: option_${optionId}_${instanceIndex} или option_${optionId}
+            if key.startswith('option_'):
                 parts = key.split('_')
-                if len(parts) >= 2:
-                    instance_key = f'{parts[1]}_{parts[2] if len(parts) > 2 else "0"}'
-                    option_values[instance_key] = int(value)
-            elif key.startswith('option_name_'):
-                # Название подключаемой опции
-                # Формат: option_name_${optionId}_${instanceIndex}
-                parts = key.split('_')
-                if len(parts) >= 3:
-                    instance_key = f'{parts[2]}_{parts[3] if len(parts) > 3 else "0"}'
-                    option_names[instance_key] = value
+                if len(parts) == 2:
+                    try:
+                        option_slug = parts[1]
+                        option_values[option_slug] = int(value)
+                    except (ValueError, TypeError):
+                        continue
+        print(option_values)
         full_name_parts = [basic_product.name]  # Составное имя
-        total_price = basic_product.price  # Цена опционального оборудования
-        # Подгружаем выбранные опции из OptionsPrice
-        value_selected_options = dict()
-        selected_options = list()
-        for instance_key, value in option_values.items():
-            if value != 0:
-                option_name = option_names.get(instance_key, None)
-                option = OptionsPrice.objects.get(name=option_name)
-                if option not in selected_options:
-                    selected_options.append(option)
-                if option_name not in value_selected_options:
-                    value_selected_options[option_name] = 0
-                value_selected_options[option_name] += value
-                total_price += (option.price * value)
-                if option.part_name not in full_name_parts:
-                    full_name_parts.append(option.part_name)
+        total_price = basic_product.price  # Цена конечного продукта с опциями
+
+        value_selected_options = {}
+        selected_options = []
+
+        for option_slug, value in option_values.items():
+            if value == 0:
+                continue
+            option = OptionsProfile.objects.get(slug=option_slug)
+            if option not in selected_options:
+                selected_options.append(option)
+            if option.name not in value_selected_options:
+                value_selected_options[option.name] = 0
+            value_selected_options[option.name] += value
+            # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
+            option_price = OptionsPrice.objects.get(option=option)
+            total_price += (option_price.price * value)
+            # if option.part_name not in full_name_parts:
+            #     full_name_parts.append(option.part_name)
         # Формирование наименования опционального изделия
         full_name = ''.join(full_name_parts)
         # Запись данных о расчете
@@ -90,39 +142,46 @@ def autocomplete_base_products(request):
     type_slug = request.GET.get('type_slug', '')
     if len(query) < 2 or not type_slug:
         return JsonResponse([], safe=False)
+    # Получаем все продукты для заданного типа (ограничиваем количество для производительности)
     products = BasicPrice.objects.filter(
-        name__icontains=query,
         product_type_id=type_slug
-    ).values_list('name', flat=True)[:10]
-    return JsonResponse(list(products), safe=False)
+    ).values_list('name', flat=True)[:200]
+    norm_query = normalize_for_search(query)
+    matched = []
+    for name in products:
+        if norm_query in normalize_for_search(name):
+            matched.append(name)
+        if len(matched) >= 10:
+            break
+    return JsonResponse(matched, safe=False)
 
 
 def get_options(request):
     type_slug = request.GET.get('type_slug')
     if not type_slug:
         return JsonResponse([], safe=False)
-    groups_option = list(OptionsGroup.objects.filter(product_type__slug=type_slug))
-    if not groups_option:
-        return JsonResponse([], safe=False)
-    option_names = set()
-    for group in groups_option:
-        for option in group.options.all():
-            option_names.add(option.name)
-    descriptions_map = dict(
-        OptionsPrice.objects.filter(name__in=option_names).values_list('name', 'description')
+    # Все опции теперь берутся напрямую из OptionsProfile без группировки
+    options = list(
+        OptionsProfile.objects.filter(
+            product_type__slug=type_slug,
+            status='active'
+        )
     )
-    serialized = []
-    for group in groups_option:
-        # name_list = option.name or []
-        name_list = [option.name for option in group.options.all()]
-        description_list = [descriptions_map.get(name, '') for name in name_list]
-        serialized.append({
-            'id': group.id,
-            'name': name_list,
-            'description': description_list,
-            'max_value': group.max_value,
-            'value': group.value or [],
-        })
+    print(OptionsProfile.objects.filter(product_type__slug='ns_me').values_list('name', 'status'))
+    if not options:
+        return JsonResponse([], safe=False)
+
+    serialized = [
+        {
+            'id': option.id,
+            'slug': option.slug,
+            'name': option.name,
+            'description': option.description,
+            # Массив возможных значений объемов подключения опции
+            'value': option.values or [],
+        }
+        for option in options
+    ]
     return JsonResponse(serialized, safe=False)
 
 
@@ -162,11 +221,16 @@ def upload_data(request):
                 for row in rows:
                     lookup_value = int(row.get(lookup_field))
                     if 'product_type' in row:
-                        product_type_slug = row['product_type'].strip()
+                        product_type_slug = (row['product_type'] or '').strip()
                         row['product_type'] = ProductType.objects.get(slug=product_type_slug)
+                    if 'option' in row:
+                        option_slug = (row['option'] or '').strip()
+                        row['option'] = OptionsProfile.objects.get(slug=option_slug)
                     if 'values' in row:
-                        value_coefficients = row['values']
+                        value_coefficients = (row['values'] or []).strip()
                         row['values'] = json.loads(value_coefficients) if value_coefficients else []
+                    if 'status' in row:
+                        row['status'] = normalize_status(row.get('status'))
                     if lookup_value in existing:
                         obj = existing[lookup_value]
                         for field, value in row.items():

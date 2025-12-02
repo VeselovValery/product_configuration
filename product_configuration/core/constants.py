@@ -8,6 +8,6 @@ EMPTY_FILLING = '-пусто-'
 # Таблицы для администрирования БД
 TABLE_CHOICES = [
     ('BasicPrice', 'Базовый продукт'),
-    ('OptionsPrice', 'Опции продукта'),
-    ('OptionsGroup', 'Групировка опций')
+    ('OptionsProfile', 'Данные по опциям'),
+    ('OptionsPrice', 'Стоимость опций'),
 ]

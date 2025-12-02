@@ -30,8 +30,3 @@ class ExportCSVForm(forms.Form):
         label='Таблица БД',
         help_text='Выберите таблицу БД для выгрузки данных'
     )
-    # folder_path = forms.CharField(
-    #     max_length=500,
-    #     label='Путь к папке для сохранения',
-    #     widget=forms.TextInput(attrs={'placeholder': '/path/to/folder'})
-    # )

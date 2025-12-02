@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ProductType, BasicPrice, OptionsPrice, OptionsGroup, Configuration, OptionsCoef
+from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, OptionsCoef, Configuration  #OptionsGroup,
 from core.constants import EMPTY_FILLING
 
 
@@ -33,16 +33,16 @@ class BasicPriceAdmin(admin.ModelAdmin):
     empty_value_display = EMPTY_FILLING
 
 
-@admin.register(OptionsPrice)
-class OptionsPriceAdmin(admin.ModelAdmin):
+@admin.register(OptionsProfile)
+class OptionsProfileAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
+        'slug',
         'name',
         'product_type',
-        'price'
     )
     list_display_links = ('name',)
-    search_fields = ('name', 'part_name')
+    search_fields = ('slug', 'name',)
     list_filter = ('product_type', 'status')
     empty_value_display = EMPTY_FILLING
 
@@ -62,18 +62,18 @@ class OptionsCoefAdmin(admin.ModelAdmin):
     empty_value_display = EMPTY_FILLING
 
 
-@admin.register(OptionsGroup)
-class OptionsGroupAdmin(admin.ModelAdmin):
-    list_display = (
-        'pk',
-        'title',
-        'product_type',
-        'max_value'
-    )
-    list_display_links = ('title',)
-    search_fields = ('title',)
-    list_filter = ('product_type', 'options')
-    empty_value_display = EMPTY_FILLING
+# @admin.register(OptionsGroup)
+# class OptionsGroupAdmin(admin.ModelAdmin):
+#     list_display = (
+#         'pk',
+#         'title',
+#         'product_type',
+#         'max_value'
+#     )
+#     list_display_links = ('title',)
+#     search_fields = ('title',)
+#     list_filter = ('product_type', 'options')
+#     empty_value_display = EMPTY_FILLING
 
 
 @admin.register(Configuration)

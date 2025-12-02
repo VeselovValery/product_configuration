@@ -70,13 +70,18 @@ class BasicPrice(models.Model):
         return self.name
 
 
-class OptionsPrice(models.Model):
+class OptionsProfile(models.Model):
     product_type = models.ForeignKey(
         ProductType,
         to_field='slug',
         on_delete=models.CASCADE,
-        related_name='options',
+        related_name='options_profile',
         verbose_name='Группа продукта'
+    )
+    slug = models.SlugField(
+        max_length=100,
+        unique=True,
+        verbose_name='Slug опции'
     )
     name = models.TextField(
         max_length=200,
@@ -87,13 +92,12 @@ class OptionsPrice(models.Model):
         default='Описание опции',
         verbose_name='Описание опции',
     )
-    part_name = models.CharField(
-        max_length=64,
-        verbose_name='Код опции'
-    )
-    price = models.IntegerField(
-        verbose_name='Цена опции в руб. без НДС'
-    )
+    # part_name = models.CharField(
+    #     max_length=64,
+    #     null=True,
+    #     blank=True,
+    #     verbose_name='Код опции'
+    # )
     values = ArrayField(
         models.IntegerField(),
         default=list,
@@ -116,6 +120,43 @@ class OptionsPrice(models.Model):
         return self.name
 
 
+class OptionsPrice(models.Model):
+    title = models.TextField(
+        max_length=200,
+        unique=True,
+        verbose_name='Название варианта опции',
+    )
+    product_type = models.ForeignKey(
+        ProductType,
+        to_field='slug',
+        on_delete=models.CASCADE,
+        related_name='options_price',
+        verbose_name='Группа продукта'
+    )
+    option = models.ForeignKey(
+        OptionsProfile,
+        to_field='slug',
+        on_delete=models.CASCADE,
+        related_name='options_price',
+        verbose_name='Опция'
+    )
+    number_variant = models.CharField(
+        max_length=200,
+        verbose_name='Номер варианта опции',
+    )
+    price = models.IntegerField(
+        verbose_name='Цена опции в руб. без НДС'
+    )
+
+    class Meta:
+        ordering = ['pk']
+        verbose_name = 'Стоимость опции'
+        verbose_name_plural = 'Стоимость опций'
+
+    def __str__(self):
+        return self.title
+
+
 class OptionsCoef(models.Model):
     title = models.TextField(
         max_length=200,
@@ -126,14 +167,15 @@ class OptionsCoef(models.Model):
         ProductType,
         to_field='slug',
         on_delete=models.CASCADE,
-        related_name='options_coef',
+        related_name='options_coefficients',
         verbose_name='Группа продукта'
     )
     option = models.ForeignKey(
-        OptionsPrice,
+        OptionsProfile,
+        to_field='slug',
         on_delete=models.CASCADE,
-        related_name='options_coef',
-        verbose_name='Группа продукта'
+        related_name='coefficients',
+        verbose_name='Опция'
     )
     name_coef = models.CharField(
         max_length=200,
@@ -149,45 +191,69 @@ class OptionsCoef(models.Model):
         return self.title
 
 
-class OptionsGroup(models.Model):
+class OptionsConstraint(models.Model):
+    title = models.CharField(
+        max_length=200
+    )
     product_type = models.ForeignKey(
         ProductType,
         to_field='slug',
         on_delete=models.CASCADE,
-        related_name='group_options',
+        related_name='options_constraints',
         verbose_name='Группа продукта'
     )
-    title = models.TextField(
-        max_length=200,
-        unique=True,
-        verbose_name='Названия группы опций',
-    )
-    # options = ArrayField(
-    #     models.CharField(max_length=200),
-    #     default=list,
-    #     verbose_name='Возможные варианты группируемых опций (через запятую)',
-    # )
     options = models.ManyToManyField(
-        OptionsPrice,
-        related_name='options_group',
+        OptionsProfile,
+        related_name='constraints',
         verbose_name='Опции входящие в группу'
     )
-    max_value = models.IntegerField(
-        verbose_name='Максимальное кол-во группируемых опций'
-    )
-    value = ArrayField(
-        models.IntegerField(),
-        default=list,
-        verbose_name='Объемы подключения опций, входящих в группу',
+    max_total_value = models.IntegerField(
+        verbose_name='Максимальное кол-во однотипных опций'
     )
 
     class Meta:
         ordering = ['pk']
-        verbose_name = 'Группа опций продукта'
-        verbose_name_plural = 'Группы опций продуктай'
+        verbose_name = 'Ограничение по суммарному объему опций'
+        verbose_name_plural = 'Ограничения по суммарному объему опций'
 
     def __str__(self):
         return self.title
+
+
+# class OptionsGroup(models.Model):
+#     product_type = models.ForeignKey(
+#         ProductType,
+#         to_field='slug',
+#         on_delete=models.CASCADE,
+#         related_name='group_options',
+#         verbose_name='Группа продукта'
+#     )
+#     title = models.TextField(
+#         max_length=200,
+#         unique=True,
+#         verbose_name='Названия группы опций',
+#     )
+#     options = models.ManyToManyField(
+#         OptionsProfile,
+#         related_name='options_group',
+#         verbose_name='Опции входящие в группу'
+#     )
+#     max_value = models.IntegerField(
+#         verbose_name='Максимальное кол-во группируемых опций'
+#     )
+#     value = ArrayField(
+#         models.IntegerField(),
+#         default=list,
+#         verbose_name='Объемы подключения опций, входящих в группу',
+#     )
+#
+#     class Meta:
+#         ordering = ['pk']
+#         verbose_name = 'Группа опций продукта'
+#         verbose_name_plural = 'Группы опций продуктай'
+#
+#     def __str__(self):
+#         return self.title
 
 
 class Configuration(models.Model):
@@ -205,7 +271,7 @@ class Configuration(models.Model):
         verbose_name='Базовый продукт'
     )
     options = models.ManyToManyField(
-        OptionsPrice,
+        OptionsProfile,
         related_name='configurations',
         verbose_name='Опции конечного продукта'
     )
