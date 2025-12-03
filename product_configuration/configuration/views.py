@@ -16,6 +16,8 @@ from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Confi
     OptionsConstraint  # OptionsGroup,
 from core.constants import STATUS_CHOICES
 
+from core.options_utils import get_device, ProcessingDevice
+
 # Таблицы для загрузки и выгрузки
 MODEL_MAP = {
     'BasicPrice': BasicPrice,
@@ -81,6 +83,8 @@ def index(request):
     if request.method == 'POST':
         product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
         basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
+        device = get_device(product_type.slug)
+        processor = ProcessingDevice(device)
         # Обработка опций: каждая опция представлена одним select-элементом
         # с именем вида "option_<slug_опции>" и значением – выбранным объемом.
         option_values = {}
@@ -93,10 +97,8 @@ def index(request):
                         option_values[option_slug] = int(value)
                     except (ValueError, TypeError):
                         continue
-        print(option_values)
-        full_name_parts = [basic_product.name]  # Составное имя
+        # full_name_parts = [basic_product.name]  # Составное имя
         total_price = basic_product.price  # Цена конечного продукта с опциями
-
         value_selected_options = {}
         selected_options = []
 
@@ -110,12 +112,15 @@ def index(request):
                 value_selected_options[option.name] = 0
             value_selected_options[option.name] += value
             # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
-            option_price = OptionsPrice.objects.get(option=option)
+            variant = getattr(option, option_slug, 1)
+            # option_price = OptionsPrice.objects.get(option=option)
+            option_price = OptionsPrice.objects.get(option=option, variant=variant)
             total_price += (option_price.price * value)
             # if option.part_name not in full_name_parts:
             #     full_name_parts.append(option.part_name)
         # Формирование наименования опционального изделия
-        full_name = ''.join(full_name_parts)
+        # full_name = ''.join(full_name_parts)
+        full_name = processor.restructure_name(basic_product.name, value_selected_options)
         # Запись данных о расчете
         config = Configuration.objects.create(
             product_type=product_type,
@@ -167,7 +172,6 @@ def get_options(request):
             status='active'
         )
     )
-    print(OptionsProfile.objects.filter(product_type__slug='ns_me').values_list('name', 'status'))
     if not options:
         return JsonResponse([], safe=False)
 

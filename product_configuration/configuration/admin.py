@@ -39,11 +39,27 @@ class OptionsProfileAdmin(admin.ModelAdmin):
         'pk',
         'slug',
         'name',
-        'product_type',
+        'product_type'
     )
     list_display_links = ('name',)
     search_fields = ('slug', 'name',)
     list_filter = ('product_type', 'status')
+    empty_value_display = EMPTY_FILLING
+
+
+@admin.register(OptionsPrice)
+class OptionsPriceAdmin(admin.ModelAdmin):
+    list_display = (
+        'pk',
+        'title',
+        'product_type',
+        'option',
+        'variant',
+        'price'
+    )
+    list_display_links = ('title',)
+    search_fields = ('title',)
+    list_filter = ('product_type', 'option')
     empty_value_display = EMPTY_FILLING
 
 

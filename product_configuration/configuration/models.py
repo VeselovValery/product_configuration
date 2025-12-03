@@ -92,7 +92,7 @@ class OptionsProfile(models.Model):
         default='Описание опции',
         verbose_name='Описание опции',
     )
-    # part_name = models.CharField(
+    # replace_part = models.CharField(
     #     max_length=64,
     #     null=True,
     #     blank=True,
@@ -140,9 +140,8 @@ class OptionsPrice(models.Model):
         related_name='options_price',
         verbose_name='Опция'
     )
-    number_variant = models.CharField(
-        max_length=200,
-        verbose_name='Номер варианта опции',
+    variant = models.IntegerField(
+        verbose_name='Номер варианта опции'
     )
     price = models.IntegerField(
         verbose_name='Цена опции в руб. без НДС'
@@ -155,6 +154,9 @@ class OptionsPrice(models.Model):
 
     def __str__(self):
         return self.title
+
+
+
 
 
 class OptionsCoef(models.Model):
