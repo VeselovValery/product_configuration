@@ -81,46 +81,33 @@ def validate_constraints(product_type, option_values):
 @login_required(login_url='auth/login/', redirect_field_name='')
 def index(request):
     if request.method == 'POST':
+        print(request.POST.get('product_type'))
         product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
         basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
-        device = get_device(product_type.slug)
+        device = get_device(request, basic_product)
         processor = ProcessingDevice(device)
         # Обработка опций: каждая опция представлена одним select-элементом
         # с именем вида "option_<slug_опции>" и значением – выбранным объемом.
-        option_values = {}
-        for key, value in request.POST.items():
-            if key.startswith('option_'):
-                parts = key.split('_')
-                if len(parts) == 2:
-                    try:
-                        option_slug = parts[1]
-                        option_values[option_slug] = int(value)
-                    except (ValueError, TypeError):
-                        continue
-        # full_name_parts = [basic_product.name]  # Составное имя
-        total_price = basic_product.price  # Цена конечного продукта с опциями
-        value_selected_options = {}
-        selected_options = []
 
-        for option_slug, value in option_values.items():
-            if value == 0:
-                continue
-            option = OptionsProfile.objects.get(slug=option_slug)
-            if option not in selected_options:
-                selected_options.append(option)
-            if option.name not in value_selected_options:
-                value_selected_options[option.name] = 0
-            value_selected_options[option.name] += value
-            # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
-            variant = getattr(option, option_slug, 1)
-            # option_price = OptionsPrice.objects.get(option=option)
-            option_price = OptionsPrice.objects.get(option=option, variant=variant)
-            total_price += (option_price.price * value)
-            # if option.part_name not in full_name_parts:
-            #     full_name_parts.append(option.part_name)
+        value_selected_options = processor.get_value_selected_options(request.POST)
+        # value_selected_options = {}
+        # for key, value in request.POST.items():
+        #     if key.startswith('option_'):
+        #         parts = key.split('_')
+        #         if len(parts) == 2:
+        #             if int(value) > 0:
+        #                 try:
+        #                     option_slug = parts[1]
+        #                     value_selected_options[option_slug] = int(value)
+        #                 except (ValueError, TypeError):
+        #                     continue
+        total_price = basic_product.price  # Цена конечного продукта с опциями
+        # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
+        # variant = getattr(option, option_slug, 1)
+        # option_price = OptionsPrice.objects.get(option=option, variant=variant)
+        # total_price += (option_price.price * value)
         # Формирование наименования опционального изделия
-        # full_name = ''.join(full_name_parts)
-        full_name = processor.restructure_name(basic_product.name, value_selected_options)
+        full_name = processor.restructure_name(value_selected_options)
         # Запись данных о расчете
         config = Configuration.objects.create(
             product_type=product_type,
@@ -129,8 +116,11 @@ def index(request):
             cost=total_price,
             author=request.user,
         )
+        selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in value_selected_options.items()]
         config.options.set(selected_options)
-        config.options_value = [f'{key} - {value}' for key, value in value_selected_options.items()]
+        config.options_value = [
+            f'* {option.name} - {value_selected_options[option.slug]}' for option in selected_options
+        ]
         config.save()
         # Возврат названия и цены продукции
         return JsonResponse({
