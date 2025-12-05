@@ -81,33 +81,18 @@ def validate_constraints(product_type, option_values):
 @login_required(login_url='auth/login/', redirect_field_name='')
 def index(request):
     if request.method == 'POST':
-        print(request.POST.get('product_type'))
         product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
-        basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
-        device = get_device(request, basic_product)
+        device = get_device(request)
         processor = ProcessingDevice(device)
-        # Обработка опций: каждая опция представлена одним select-элементом
-        # с именем вида "option_<slug_опции>" и значением – выбранным объемом.
-
-        value_selected_options = processor.get_value_selected_options(request.POST)
-        # value_selected_options = {}
-        # for key, value in request.POST.items():
-        #     if key.startswith('option_'):
-        #         parts = key.split('_')
-        #         if len(parts) == 2:
-        #             if int(value) > 0:
-        #                 try:
-        #                     option_slug = parts[1]
-        #                     value_selected_options[option_slug] = int(value)
-        #                 except (ValueError, TypeError):
-        #                     continue
-        total_price = basic_product.price  # Цена конечного продукта с опциями
+        basic_product = processor.basic_product
+        value_selected_options = processor.value_selected_options
+        total_price = processor.total_price  # Цена конечного продукта с опциями
         # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
         # variant = getattr(option, option_slug, 1)
         # option_price = OptionsPrice.objects.get(option=option, variant=variant)
         # total_price += (option_price.price * value)
         # Формирование наименования опционального изделия
-        full_name = processor.restructure_name(value_selected_options)
+        full_name = processor.full_name
         # Запись данных о расчете
         config = Configuration.objects.create(
             product_type=product_type,

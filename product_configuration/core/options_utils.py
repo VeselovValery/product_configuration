@@ -1,10 +1,10 @@
 import re
 
 from typing import Protocol
+from functools import cached_property
 from django.core.handlers.wsgi import WSGIRequest
 
-from configuration.models import OptionsProfile, BasicPrice
-
+from configuration.models import BasicPrice, OptionsProfile, OptionsPrice
 
 
 def replace_count_match(pattern, string, replace, counter):
@@ -18,87 +18,124 @@ def replace_count_match(pattern, string, replace, counter):
 class NamingDevice(Protocol):
     request: 'WSGIRequest'
     basic_product: 'BasicPrice'
-    value_selected_options: dict
+    parts_full_name: list
+    properties: dict
 
-    def get_value_selected_options(self, objects) -> dict:
+    @cached_property
+    def value_selected_options(self) -> dict:
         ...
 
-    def restructure_name(self, options: dict) -> str:
+    @cached_property
+    def full_name(self) -> str:
         ...
 
-    def total_price(self):
+    @cached_property
+    def total_price(self) -> int:
         ...
 
-    def validate(self, name: str) -> str:
+    def update_data(self, options: dict, value: int):
+        ...
+
+    def get_option_price(self, option_slug: str) -> 'OptionsPrice':
         ...
 
 
-class NsMe:
+class Device:
 
-    def __init__(self, request: 'WSGIRequest', basic_product: 'BasicPrice'):
+    def __init__(self, request: 'WSGIRequest'):
         self.request = request
-        self.basic_product = basic_product
-        self.value_selected_options = dict()
+        self.basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
+        self.parts_full_name = [self.basic_product.name]
+        self.properties = dict()
 
-    def get_value_selected_options(self, objects):
-        for key, value in objects.items():
+    @cached_property
+    def value_selected_options(self) -> dict:
+        value_selected_options = {}
+        for key, value in self.request.POST.items():
             if key.startswith('option_'):
                 parts = key.split('_')
                 if len(parts) == 2:
                     if int(value) > 0:
                         try:
                             option_slug = parts[1]
-                            self.value_selected_options[option_slug] = int(value)
+                            value_selected_options[option_slug] = int(value)
+                            self.update_data(option_slug, int(value))
                         except (ValueError, TypeError):
                             continue
-        return self.value_selected_options
+        return value_selected_options
 
-    def restructure_name(self, options: dict):
-        parts_name = [self.basic_product.name]
-        for option_slug, value in options.items():
-            if option_slug == 'meavr':
-                parts_name[0] = replace_count_match(r'-[ABCDR]', parts_name[0], '-C', counter=1)
-            if option_slug == 'mefloor':
-                parts_name[0] = replace_count_match(r'-[ABCDR]', parts_name[0], '-C', counter=4)
-            if option_slug in ['meaddmas', 'medifsen', 'mecable']:
-                if len(parts_name) < 2:
-                    parts_name.append('-K0-T2-R-A2-24')
-                if option_slug == 'meaddmas':
-                    parts_name[1] = replace_count_match(
-                        r'(?<=[A-Za-zА-Яа-яЁё])\d-',
-                        parts_name[1],
-                        f'{2 + value}-',
-                        counter=3
-                    )
-                if option_slug == 'medifsen':
-                    parts_name[1] = replace_count_match(r'-[KTRA]', parts_name[1], '-D', counter=4)
-                if option_slug == 'mecable':
-                    parts_name[1] = replace_count_match(
-                        r'(?<=[A-Za-zА-Яа-яЁё])\d-',
-                        parts_name[1],
-                        f'{value // 5}-',
-                        counter=1
-                    )
-        return ''.join(parts_name)
+    @cached_property
+    def full_name(self):
+        return ''.join(self.parts_full_name)
 
+    def update_data(self, option_slug: str, value: int):
+        pass
+
+    def get_option_price(self, option_slug: str):
+        variant = getattr(self.basic_product, option_slug, 1)
+        return OptionsPrice.objects.get(option__slug=option_slug, variant=variant)
+
+
+class NsMe(Device):
+
+    def __init__(self, request: 'WSGIRequest'):
+        super().__init__(request)
+
+    @cached_property
+    def total_price(self):
+        total_price = self.basic_product.price
+        for option_slug, value in self.value_selected_options.items():
+            if option_slug == 'medifsen':
+                option_price = self.get_option_price(option_slug)
+                total_price += (self.properties.get('master_pumps', 2) * option_price.price)
+            elif option_slug == 'mecable':
+                option_price = self.get_option_price(option_slug)
+                total_price += (getattr(self.basic_product, 'value_pupms', 1) * option_price.price * value)
+            else:
+                option_price = self.get_option_price(option_slug)
+                total_price += (option_price.price * value)
+        return total_price
+
+    def update_data(self, option_slug: str, value: int):
+        """
+            Обновление свойств self.parts_full_name и self.properties.
+        """
+        if option_slug == 'meavr':
+            self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=1)
+        if option_slug == 'mefloor':
+            self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=4)
+        if option_slug in ['meaddmas', 'medifsen', 'mecable']:
+            if len(self.parts_full_name) < 2:
+                self.parts_full_name.append('-K0-T2-R-A2-24')
+            if option_slug == 'meaddmas':
+                self.parts_full_name[1] = replace_count_match(
+                    r'(?<=[A-Za-zА-Яа-яЁё])\d-',
+                    self.parts_full_name[1],
+                    f'{2 + value}-',
+                    counter=3
+                )
+                self.properties['master_pumps'] = value + 2
+            if option_slug == 'medifsen':
+                self.parts_full_name[1] = replace_count_match(r'-[KTRA]', self.parts_full_name[1], '-D', counter=4)
+            if option_slug == 'mecable':
+                self.parts_full_name[1] = replace_count_match(
+                    r'(?<=[A-Za-zА-Яа-яЁё])\d-',
+                    self.parts_full_name[1],
+                    f'{value // 5}-',
+                    counter=1
+                )
+
+
+class NsFs(Device):
+
+    def __init__(self, request: 'WSGIRequest'):
+        super().__init__(request)
+
+    @cached_property
     def total_price(self):
         pass
 
-    def validate(self, name: str):
-        return []
-
-
-class NsFs:
-
-    def __init__(self, request: 'WSGIRequest', basic_product: 'BasicPrice'):
-        self.request = request
-        self.basic_product = basic_product
-        self.value_selected_options = dict()
-
-    def restructure_name(self, options: dict):
-        pass
-
-    def validate(self, name: str):
+    def update_data(self, option_slug: str, value: int):
         pass
 
 
@@ -107,23 +144,30 @@ class ProcessingDevice:
     def __init__(self, device: NamingDevice):
         self._device = device
 
-    def get_value_selected_options(self, objects):
-        return self._device.get_value_selected_options(objects)
+    @cached_property
+    def basic_product(self):
+        return self._device.basic_product
 
-    def restructure_name(self, options: dict):
-        return self._device.restructure_name(options)
+    @cached_property
+    def value_selected_options(self):
+        return self._device.value_selected_options
 
-    def validate(self, name: str):
-        return self._device.validate(name)
+    @cached_property
+    def full_name(self):
+        return self._device.full_name
+
+    @cached_property
+    def total_price(self):
+        return self._device.total_price
 
 
-def get_device(request, basic_product):
+def get_device(request):
     devices = {
         'nsme': NsMe,
         'nsfs': NsFs
     }
-    device_type = basic_product.product_type.slug
+    device_type = request.POST.get('product_type')
     if device_type not in devices:
         raise ValueError(f'Неизвестный тип продукта: {device_type}')
     cls = devices[device_type]
-    return cls(request=request, basic_product=basic_product)
+    return cls(request=request)
