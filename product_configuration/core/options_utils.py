@@ -55,11 +55,11 @@ class Device:
             if key.startswith('option_'):
                 parts = key.split('_')
                 if len(parts) == 2:
-                    if int(value) > 0:
+                    if value != '0':
                         try:
                             option_slug = parts[1]
-                            value_selected_options[option_slug] = int(value)
-                            self.update_data(option_slug, int(value))
+                            value_selected_options[option_slug] = value
+                            self.update_data(option_slug, value)
                         except (ValueError, TypeError):
                             continue
         return value_selected_options
@@ -68,7 +68,7 @@ class Device:
     def full_name(self):
         return ''.join(self.parts_full_name)
 
-    def update_data(self, option_slug: str, value: int):
+    def update_data(self, option_slug: str, value: str):
         pass
 
     def get_option_price(self, option_slug: str):
@@ -90,13 +90,13 @@ class NsMe(Device):
                 total_price += (self.properties.get('master_pumps', 2) * option_price.price)
             elif option_slug == 'mecable':
                 option_price = self.get_option_price(option_slug)
-                total_price += (getattr(self.basic_product, 'value_pupms', 1) * option_price.price * value)
+                total_price += (getattr(self.basic_product, 'value_pupms', 1) * option_price.price * int(value))
             else:
                 option_price = self.get_option_price(option_slug)
-                total_price += (option_price.price * value)
+                total_price += (option_price.price * int(value))
         return total_price
 
-    def update_data(self, option_slug: str, value: int):
+    def update_data(self, option_slug: str, value: str):
         """
             Обновление свойств self.parts_full_name и self.properties.
         """
@@ -111,7 +111,7 @@ class NsMe(Device):
                 self.parts_full_name[1] = replace_count_match(
                     r'(?<=[A-Za-zА-Яа-яЁё])\d-',
                     self.parts_full_name[1],
-                    f'{2 + value}-',
+                    f'{2 + int(value)}-',
                     counter=3
                 )
                 self.properties['master_pumps'] = value + 2
@@ -121,7 +121,7 @@ class NsMe(Device):
                 self.parts_full_name[1] = replace_count_match(
                     r'(?<=[A-Za-zА-Яа-яЁё])\d-',
                     self.parts_full_name[1],
-                    f'{value // 5}-',
+                    f'{int(value) // 5}-',
                     counter=1
                 )
 
@@ -135,7 +135,7 @@ class NsFs(Device):
     def total_price(self):
         pass
 
-    def update_data(self, option_slug: str, value: int):
+    def update_data(self, option_slug: str, value: str):
         pass
 
 

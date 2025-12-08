@@ -92,14 +92,13 @@ class OptionsProfile(models.Model):
         default='Описание опции',
         verbose_name='Описание опции',
     )
-    # replace_part = models.CharField(
-    #     max_length=64,
-    #     null=True,
-    #     blank=True,
-    #     verbose_name='Код опции'
+    # values = ArrayField(
+    #     models.IntegerField(),
+    #     default=list,
+    #     verbose_name='Объемы подключения опции',
     # )
     values = ArrayField(
-        models.IntegerField(),
+        models.CharField(max_length=30),
         default=list,
         verbose_name='Объемы подключения опции',
     )

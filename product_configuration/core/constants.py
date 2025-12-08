@@ -10,4 +10,5 @@ TABLE_CHOICES = [
     ('BasicPrice', 'Базовый продукт'),
     ('OptionsProfile', 'Данные по опциям'),
     ('OptionsPrice', 'Стоимость опций'),
+    ('Configuration', 'Расчеты'),
 ]

@@ -12,8 +12,7 @@ from django.views.generic import ListView
 from django.core.exceptions import ValidationError
 
 from .forms import UploadCSVForm, ExportCSVForm
-from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Configuration, \
-    OptionsConstraint  # OptionsGroup,
+from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Configuration, OptionsConstraint
 from core.constants import STATUS_CHOICES
 
 from core.options_utils import get_device, ProcessingDevice
@@ -22,7 +21,8 @@ from core.options_utils import get_device, ProcessingDevice
 MODEL_MAP = {
     'BasicPrice': BasicPrice,
     'OptionsProfile': OptionsProfile,
-    'OptionsPrice': OptionsPrice
+    'OptionsPrice': OptionsPrice,
+    'Configuration': Configuration
 }
 # Таблица замены похожих русских букв на английские для поиска
 RUS_TO_LAT_TRANSLATION = str.maketrans({
@@ -206,8 +206,8 @@ def upload_data(request):
                         option_slug = (row['option'] or '').strip()
                         row['option'] = OptionsProfile.objects.get(slug=option_slug)
                     if 'values' in row:
-                        value_coefficients = (row['values'] or []).strip()
-                        row['values'] = json.loads(value_coefficients) if value_coefficients else []
+                        values = (row['values'] or []).strip()
+                        row['values'] = json.loads(values) if values else []
                     if 'status' in row:
                         row['status'] = normalize_status(row.get('status'))
                     if lookup_value in existing:
@@ -257,7 +257,7 @@ def export_data(request):
                     if field_name == 'product_type':
                         related_obj = getattr(obj, field_name)
                         value = getattr(related_obj, 'slug', '') if related_obj else ''
-                    elif field_name == 'coefficients':
+                    elif field_name == 'values':
                         value = json.dumps(getattr(obj, field_name))
                     else:
                         value = getattr(obj, field_name)
