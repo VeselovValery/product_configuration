@@ -7,6 +7,18 @@ from django.core.handlers.wsgi import WSGIRequest
 from configuration.models import BasicPrice, OptionsProfile, OptionsPrice
 
 
+# Таблица с заменой обозначения тока жокей насоса
+REPLACE_CURRENT_JOCKEY = {
+    '0,63-1': '2',
+    '1-1,6': '3',
+    '1,6-2,5': '4',
+    '2,5-4': '5',
+    '4-6': '6',
+    '6-9': '7',
+    '9-14': '8'
+}
+
+
 def replace_count_match(pattern, string, replace, counter):
     def replacer(match):
         replacer.count += 1
@@ -46,7 +58,6 @@ class Device:
         self.request = request
         self.basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
         self.parts_full_name = [self.basic_product.name]
-        self.properties = dict()
 
     @cached_property
     def value_selected_options(self) -> dict:
@@ -80,19 +91,18 @@ class NsMe(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
+        self.properties = {'master_pumps': 2}
 
     @cached_property
     def total_price(self):
         total_price = self.basic_product.price
         for option_slug, value in self.value_selected_options.items():
+            option_price = self.get_option_price(option_slug)
             if option_slug == 'medifsen':
-                option_price = self.get_option_price(option_slug)
                 total_price += (self.properties.get('master_pumps', 2) * option_price.price)
             elif option_slug == 'mecable':
-                option_price = self.get_option_price(option_slug)
-                total_price += (getattr(self.basic_product, 'value_pupms', 1) * option_price.price * int(value))
+                total_price += (getattr(self.basic_product, 'value_pumps', 1) * option_price.price * int(value))
             else:
-                option_price = self.get_option_price(option_slug)
                 total_price += (option_price.price * int(value))
         return total_price
 
@@ -114,7 +124,7 @@ class NsMe(Device):
                     f'{2 + int(value)}-',
                     counter=3
                 )
-                self.properties['master_pumps'] = value + 2
+                self.properties['master_pumps'] += int(value)
             if option_slug == 'medifsen':
                 self.parts_full_name[1] = replace_count_match(r'-[KTRA]', self.parts_full_name[1], '-D', counter=4)
             if option_slug == 'mecable':
@@ -130,13 +140,113 @@ class NsFs(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
+        self.properties = {'valves': 1}
 
     @cached_property
     def total_price(self):
-        pass
+        total_price = self.basic_product.price
+        main_pumps = getattr(self.basic_product, 'main_pumps', 1)
+        reserve_pumps = getattr(self.basic_product, 'reserve_pumps', 1)
+        for option_slug, value in self.value_selected_options.items():
+            option_price = self.get_option_price(option_slug)
+            if option_slug == 'fsupcurrent':
+                total_price += (self.properties.get('valves', 1) * int(value) * option_price)
+            elif option_slug == 'softstarter':
+                value_soft_starter = main_pumps if value == 'Основные насосы' else main_pumps + reserve_pumps
+                total_price += (value_soft_starter * option_price)
+            elif option_slug == 'fscable':
+                total_price += ((main_pumps + reserve_pumps) * option_price.price * int(value))
+            elif option_slug == 'fsjockey':
+                total_price += option_price.price
+            else:
+                total_price += (option_price.price * int(value))
+        return total_price
 
     def update_data(self, option_slug: str, value: str):
-        pass
+        """
+            Обновление свойств self.parts_full_name и self.properties.
+        """
+        if option_slug == 'fsjockey':
+            if value != getattr(self.basic_product, 'current_jockey', '0,63-1'):
+                if len(self.parts_full_name) < 2:
+                    self.parts_full_name.append('-S0T1000000000')
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    REPLACE_CURRENT_JOCKEY.get(value, '0'),
+                    counter=9
+                )
+        else:
+            if len(self.parts_full_name) < 2:
+                self.parts_full_name.append('-S0T1000000000')
+            matches_valves = re.findall(r'[ST](\d)', self.parts_full_name[1])
+            digit_after_s = int(matches_valves[0])
+            digit_after_t = int(matches_valves[1])
+            if option_slug == 'volbasevalve':
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    digit_after_s + 1,
+                    counter=2
+                )
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    digit_after_t - 1,
+                    counter=4
+                )
+            if option_slug in ['fs1phvalve', 'fs3phvalve']:
+                replace = digit_after_s + int(value) if option_slug == 'fs1phvalve' else digit_after_t + int(value)
+                counter = 2 if option_slug == 'fs1phvalve' else 4
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    replace,
+                    counter=counter
+                )
+                self.properties['valves'] += int(value)
+            if option_slug == 'fsupcurrent':
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    value,
+                    counter=8
+                )
+            if option_slug in ['fsdrainagefloat', 'fsdrainage']:
+                replace = f'D{value}' if option_slug == 'fsdrainagefloat' else f'P{value}'
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9][A-Z0-9]',
+                    self.parts_full_name[1],
+                    replace,
+                    counter=3
+                )
+            if option_slug in ['colorcabinet', 'noneutral']:
+                matches_execution = re.findall(r'[A-Z0-9]', self.parts_full_name[1])
+                digit_execution = int(matches_execution[9])
+                replace = digit_execution + 1 if option_slug == 'colorcabinet' else digit_execution + 2
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    replace,
+                    counter=10
+                )
+            if option_slug == 'softstarter':
+                replace = 'M' if value == 'Основные насосы' else 'A'
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    replace,
+                    counter=7
+                )
+            if option_slug == 'fscable':
+                if len(self.parts_full_name) < 2:
+                    self.parts_full_name.append('-K000000')
+                self.parts_full_name[1] = replace_count_match(
+                    r'[A-Z0-9]',
+                    self.parts_full_name[1],
+                    f'{int(value) // 5}-',
+                    counter=2
+                )
 
 
 class ProcessingDevice:

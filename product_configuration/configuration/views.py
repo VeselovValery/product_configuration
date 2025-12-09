@@ -31,6 +31,11 @@ RUS_TO_LAT_TRANSLATION = str.maketrans({
     'а': 'a', 'в': 'b', 'е': 'e', 'к': 'k', 'м': 'm', 'н': 'h',
     'о': 'o', 'р': 'p', 'с': 'c', 'т': 't', 'у': 'y', 'х': 'x',
 })
+# Группировка типов продуктов для вывода опций по нескольким группам продукта
+GROUP_TYPE_PRODUCT = {
+    'hydrompc': ['hydrompc', 'shutpmpcv'],
+    'nsfs': ['nsfs', 'shupnfs']
+}
 
 
 def normalize_for_search(text: str) -> str:
@@ -122,7 +127,6 @@ def autocomplete_base_products(request):
     type_slug = request.GET.get('type_slug', '')
     if len(query) < 2 or not type_slug:
         return JsonResponse([], safe=False)
-    # Получаем все продукты для заданного типа (ограничиваем количество для производительности)
     products = BasicPrice.objects.filter(
         product_type_id=type_slug
     ).values_list('name', flat=True)[:200]
@@ -140,16 +144,15 @@ def get_options(request):
     type_slug = request.GET.get('type_slug')
     if not type_slug:
         return JsonResponse([], safe=False)
-    # Все опции теперь берутся напрямую из OptionsProfile без группировки
+    type_slug = GROUP_TYPE_PRODUCT.get(type_slug, [type_slug])
     options = list(
         OptionsProfile.objects.filter(
-            product_type__slug=type_slug,
+            product_type__slug__in=type_slug,
             status='active'
         )
     )
     if not options:
         return JsonResponse([], safe=False)
-
     serialized = [
         {
             'id': option.id,

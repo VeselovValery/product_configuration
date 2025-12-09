@@ -45,12 +45,12 @@ class BasicPrice(models.Model):
         unique=True,
         verbose_name='Наименование базового продукта',
     )
-    partnumber = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True,
-        verbose_name='Номер продукта'
-    )
+    # partnumber = models.CharField(
+    #     max_length=20,
+    #     null=True,
+    #     blank=True,
+    #     verbose_name='Номер продукта'
+    # )
     price = models.IntegerField(
         verbose_name='Цена базового продукта в руб. без НДС'
     )
@@ -92,11 +92,6 @@ class OptionsProfile(models.Model):
         default='Описание опции',
         verbose_name='Описание опции',
     )
-    # values = ArrayField(
-    #     models.IntegerField(),
-    #     default=list,
-    #     verbose_name='Объемы подключения опции',
-    # )
     values = ArrayField(
         models.CharField(max_length=30),
         default=list,
@@ -125,13 +120,13 @@ class OptionsPrice(models.Model):
         unique=True,
         verbose_name='Название варианта опции',
     )
-    product_type = models.ForeignKey(
-        ProductType,
-        to_field='slug',
-        on_delete=models.CASCADE,
-        related_name='options_price',
-        verbose_name='Группа продукта'
-    )
+    # product_type = models.ForeignKey(
+    #     ProductType,
+    #     to_field='slug',
+    #     on_delete=models.CASCADE,
+    #     related_name='options_price',
+    #     verbose_name='Группа продукта'
+    # )
     option = models.ForeignKey(
         OptionsProfile,
         to_field='slug',
@@ -155,38 +150,38 @@ class OptionsPrice(models.Model):
         return self.title
 
 
-class OptionsCoef(models.Model):
-    title = models.TextField(
-        max_length=200,
-        unique=True,
-        verbose_name='Названия коэффициента опции',
-    )
-    product_type = models.ForeignKey(
-        ProductType,
-        to_field='slug',
-        on_delete=models.CASCADE,
-        related_name='options_coefficients',
-        verbose_name='Группа продукта'
-    )
-    option = models.ForeignKey(
-        OptionsProfile,
-        to_field='slug',
-        on_delete=models.CASCADE,
-        related_name='coefficients',
-        verbose_name='Опция'
-    )
-    name_coef = models.CharField(
-        max_length=200,
-        verbose_name='Наименование коэффициента',
-    )
-
-    class Meta:
-        ordering = ['pk']
-        verbose_name = 'Коэффициент опции'
-        verbose_name_plural = 'Коэффициенты опций'
-
-    def __str__(self):
-        return self.title
+# class OptionsCoef(models.Model):
+#     title = models.TextField(
+#         max_length=200,
+#         unique=True,
+#         verbose_name='Названия коэффициента опции',
+#     )
+#     product_type = models.ForeignKey(
+#         ProductType,
+#         to_field='slug',
+#         on_delete=models.CASCADE,
+#         related_name='options_coefficients',
+#         verbose_name='Группа продукта'
+#     )
+#     option = models.ForeignKey(
+#         OptionsProfile,
+#         to_field='slug',
+#         on_delete=models.CASCADE,
+#         related_name='coefficients',
+#         verbose_name='Опция'
+#     )
+#     name_coef = models.CharField(
+#         max_length=200,
+#         verbose_name='Наименование коэффициента',
+#     )
+#
+#     class Meta:
+#         ordering = ['pk']
+#         verbose_name = 'Коэффициент опции'
+#         verbose_name_plural = 'Коэффициенты опций'
+#
+#     def __str__(self):
+#         return self.title
 
 
 class OptionsConstraint(models.Model):
