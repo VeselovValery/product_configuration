@@ -6,6 +6,7 @@ from django.core.handlers.wsgi import WSGIRequest
 
 from configuration.models import BasicPrice, OptionsProfile, OptionsPrice
 
+from .errors import OptionDoesNotExist
 
 # Таблица с заменой обозначения тока жокей насоса
 REPLACE_CURRENT_JOCKEY = {
@@ -57,7 +58,8 @@ class Device:
     def __init__(self, request: 'WSGIRequest'):
         self.request = request
         self.basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
-        self.parts_full_name = [self.basic_product.name]
+        self.product_type = self.basic_product.product_type.slug
+        self.parts_full_name = [self.basic_product.name, '', '']
 
     @cached_property
     def value_selected_options(self) -> dict:
@@ -83,8 +85,11 @@ class Device:
         pass
 
     def get_option_price(self, option_slug: str):
-        variant = getattr(self.basic_product, option_slug, 1)
-        return OptionsPrice.objects.get(option__slug=option_slug, variant=variant)
+        try:
+            variant = getattr(self.basic_product, option_slug, 1)
+            return OptionsPrice.objects.get(option__slug=option_slug, variant=variant)
+        except OptionsPrice.DoesNotExist:
+            raise OptionDoesNotExist(option_slug)
 
 
 class NsMe(Device):
@@ -97,13 +102,16 @@ class NsMe(Device):
     def total_price(self):
         total_price = self.basic_product.price
         for option_slug, value in self.value_selected_options.items():
-            option_price = self.get_option_price(option_slug)
-            if option_slug == 'medifsen':
-                total_price += (self.properties.get('master_pumps', 2) * option_price.price)
-            elif option_slug == 'mecable':
-                total_price += (getattr(self.basic_product, 'value_pumps', 1) * option_price.price * int(value))
-            else:
-                total_price += (option_price.price * int(value))
+            try:
+                option_price = self.get_option_price(option_slug)
+                if option_slug == 'medifsen':
+                    total_price += (self.properties.get('master_pumps', 2) * option_price.price)
+                elif option_slug == 'mecable':
+                    total_price += (getattr(self.basic_product, 'value_pumps', 1) * option_price.price * int(value))
+                else:
+                    total_price += (option_price.price * int(value))
+            except OptionDoesNotExist:
+                raise
         return total_price
 
     def update_data(self, option_slug: str, value: str):
@@ -115,8 +123,8 @@ class NsMe(Device):
         if option_slug == 'mefloor':
             self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=4)
         if option_slug in ['meaddmas', 'medifsen', 'mecable']:
-            if len(self.parts_full_name) < 2:
-                self.parts_full_name.append('-K0-T2-R-A2-24')
+            if not self.parts_full_name[1]:
+                self.parts_full_name[1] = '-K0-T2-R-A2-24'
             if option_slug == 'meaddmas':
                 self.parts_full_name[1] = replace_count_match(
                     r'(?<=[A-Za-zА-Яа-яЁё])\d-',
@@ -148,18 +156,21 @@ class NsFs(Device):
         main_pumps = getattr(self.basic_product, 'main_pumps', 1)
         reserve_pumps = getattr(self.basic_product, 'reserve_pumps', 1)
         for option_slug, value in self.value_selected_options.items():
-            option_price = self.get_option_price(option_slug)
-            if option_slug == 'fsupcurrent':
-                total_price += (self.properties.get('valves', 1) * int(value) * option_price)
-            elif option_slug == 'softstarter':
-                value_soft_starter = main_pumps if value == 'Основные насосы' else main_pumps + reserve_pumps
-                total_price += (value_soft_starter * option_price)
-            elif option_slug == 'fscable':
-                total_price += ((main_pumps + reserve_pumps) * option_price.price * int(value))
-            elif option_slug == 'fsjockey':
-                total_price += option_price.price
-            else:
-                total_price += (option_price.price * int(value))
+            try:
+                option_price = self.get_option_price(option_slug)
+                if option_slug == 'fsupcurrent':
+                    total_price += (self.properties.get('valves', 1) * int(value) * option_price.price)
+                elif option_slug == 'softstarter':
+                    value_soft_starter = main_pumps if value == 'Основные насосы' else main_pumps + reserve_pumps
+                    total_price += (value_soft_starter * option_price.price)
+                elif option_slug == 'fscable':
+                    total_price += ((main_pumps + reserve_pumps) * option_price.price * int(value))
+                elif option_slug == 'fsjockey':
+                    total_price += option_price.price
+                else:
+                    total_price += (option_price.price * int(value))
+            except OptionDoesNotExist:
+                raise
         return total_price
 
     def update_data(self, option_slug: str, value: str):
@@ -168,17 +179,26 @@ class NsFs(Device):
         """
         if option_slug == 'fsjockey':
             if value != getattr(self.basic_product, 'current_jockey', '0,63-1'):
-                if len(self.parts_full_name) < 2:
-                    self.parts_full_name.append('-S0T1000000000')
+                if not self.parts_full_name[1]:
+                    self.parts_full_name[1] = '-S0T1000000000'
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
                     self.parts_full_name[1],
                     REPLACE_CURRENT_JOCKEY.get(value, '0'),
                     counter=9
                 )
+        elif option_slug == 'fscable':
+            if not self.parts_full_name[2]:
+                self.parts_full_name[2] = '-K000000'
+            self.parts_full_name[2] = replace_count_match(
+                r'[A-Z0-9]',
+                self.parts_full_name[2],
+                f'{int(value) // 5}',
+                counter=2
+            )
         else:
-            if len(self.parts_full_name) < 2:
-                self.parts_full_name.append('-S0T1000000000')
+            if not self.parts_full_name[1]:
+                self.parts_full_name[1] = '-S0T1000000000'
             matches_valves = re.findall(r'[ST](\d)', self.parts_full_name[1])
             digit_after_s = int(matches_valves[0])
             digit_after_t = int(matches_valves[1])
@@ -186,13 +206,13 @@ class NsFs(Device):
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
                     self.parts_full_name[1],
-                    digit_after_s + 1,
+                    str(digit_after_s + 1),
                     counter=2
                 )
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
                     self.parts_full_name[1],
-                    digit_after_t - 1,
+                    str(digit_after_t - 1),
                     counter=4
                 )
             if option_slug in ['fs1phvalve', 'fs3phvalve']:
@@ -201,7 +221,7 @@ class NsFs(Device):
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
                     self.parts_full_name[1],
-                    replace,
+                    str(replace),
                     counter=counter
                 )
                 self.properties['valves'] += int(value)
@@ -227,7 +247,7 @@ class NsFs(Device):
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
                     self.parts_full_name[1],
-                    replace,
+                    str(replace),
                     counter=10
                 )
             if option_slug == 'softstarter':
@@ -238,15 +258,9 @@ class NsFs(Device):
                     replace,
                     counter=7
                 )
-            if option_slug == 'fscable':
-                if len(self.parts_full_name) < 2:
-                    self.parts_full_name.append('-K000000')
-                self.parts_full_name[1] = replace_count_match(
-                    r'[A-Z0-9]',
-                    self.parts_full_name[1],
-                    f'{int(value) // 5}-',
-                    counter=2
-                )
+
+    # def validate_constraints(self):
+
 
 
 class ProcessingDevice:
@@ -268,7 +282,10 @@ class ProcessingDevice:
 
     @cached_property
     def total_price(self):
-        return self._device.total_price
+        try:
+            return self._device.total_price
+        except OptionDoesNotExist:
+            raise
 
 
 def get_device(request):

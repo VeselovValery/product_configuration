@@ -43,6 +43,9 @@
               <button type="submit" id="submit-btn" class="btn btn-primary text_russo bg-custom-blue" disabled>РАССЧИТАТЬ</button>
             </div>
           </form>
+          <div id="error" style="display: none;" class="alert alert-danger mt-3">
+            <p><span id="error-message" class="label-bold"></span></p>
+          </div>
           <div id="result-container" style="display: none; margin-top: 20px;" class="card">
             <div class="card-body">
                 <p><strong>Наименование: </strong><span id="full-name" class="label-bold"></span></p>
@@ -218,14 +221,19 @@
               'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
           }
       })
-      .then(response => response.json())
-      .then(data => {
-            // Показываем результат
-            document.getElementById('full-name').textContent = data.full_name;
-            document.getElementById('total-price').textContent = data.total_price;
-
-            document.getElementById('result-container').style.display = 'block';
-        })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) {
+            document.getElementById('error-message').textContent = data.error || 'Ошибка';
+            document.getElementById('error').style.display = 'block';
+            resetResultContainer();
+            return;
+        }
+        document.getElementById('error').style.display = 'none';
+        document.getElementById('full-name').textContent = data.full_name;
+        document.getElementById('total-price').textContent = data.total_price;
+        document.getElementById('result-container').style.display = 'block';
+      })
       .catch(error => {
           console.error('Ошибка:', error);
       });

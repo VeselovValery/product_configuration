@@ -16,6 +16,7 @@ from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Confi
 from core.constants import STATUS_CHOICES
 
 from core.options_utils import get_device, ProcessingDevice
+from core.errors import OptionDoesNotExist
 
 # Таблицы для загрузки и выгрузки
 MODEL_MAP = {
@@ -86,37 +87,40 @@ def validate_constraints(product_type, option_values):
 @login_required(login_url='auth/login/', redirect_field_name='')
 def index(request):
     if request.method == 'POST':
-        product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
+        # product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
         device = get_device(request)
         processor = ProcessingDevice(device)
         basic_product = processor.basic_product
         value_selected_options = processor.value_selected_options
-        total_price = processor.total_price  # Цена конечного продукта с опциями
-        # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
-        # variant = getattr(option, option_slug, 1)
-        # option_price = OptionsPrice.objects.get(option=option, variant=variant)
-        # total_price += (option_price.price * value)
-        # Формирование наименования опционального изделия
-        full_name = processor.full_name
-        # Запись данных о расчете
-        config = Configuration.objects.create(
-            product_type=product_type,
-            basic_product=basic_product,
-            name=full_name,
-            cost=total_price,
-            author=request.user,
-        )
-        selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in value_selected_options.items()]
-        config.options.set(selected_options)
-        config.options_value = [
-            f'* {option.name} - {value_selected_options[option.slug]}' for option in selected_options
-        ]
-        config.save()
-        # Возврат названия и цены продукции
-        return JsonResponse({
-            'full_name': full_name,
-            'total_price': total_price
-        })
+        try:
+            total_price = processor.total_price  # Цена конечного продукта с опциями
+            # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
+            # variant = getattr(option, option_slug, 1)
+            # option_price = OptionsPrice.objects.get(option=option, variant=variant)
+            # total_price += (option_price.price * value)
+            # Формирование наименования опционального изделия
+            full_name = processor.full_name
+            # Запись данных о расчете
+            config = Configuration.objects.create(
+                product_type=basic_product.product_type.slug,
+                basic_product=basic_product,
+                name=full_name,
+                cost=total_price,
+                author=request.user,
+            )
+            selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in value_selected_options.items()]
+            config.options.set(selected_options)
+            config.options_value = [
+                f'* {option.name} - {value_selected_options[option.slug]}' for option in selected_options
+            ]
+            config.save()
+            # Возврат названия и цены продукции
+            return JsonResponse({
+                'full_name': full_name,
+                'total_price': total_price
+            })
+        except OptionDoesNotExist as error:
+            return JsonResponse({'error': str(error)}, status=400)
     else:
         types = ProductType.objects.filter(status='active')
         return render(request, 'configuration/index.html', {'product_types': types})
@@ -257,7 +261,7 @@ def export_data(request):
             for obj in queryset:
                 row = []
                 for field_name in field_names:
-                    if field_name == 'product_type':
+                    if field_name in ['product_type', 'option']:
                         related_obj = getattr(obj, field_name)
                         value = getattr(related_obj, 'slug', '') if related_obj else ''
                     elif field_name == 'values':
