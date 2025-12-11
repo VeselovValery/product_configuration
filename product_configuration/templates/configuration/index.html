@@ -63,10 +63,58 @@
     const suggestionList = document.getElementById('suggestion-list');
     const submitBtn = document.getElementById('submit-btn');
     const optionsContainer = document.getElementById('options-container');
+    const errorBox = document.getElementById('error');
+    const errorMessage = document.getElementById('error-message');
     const resultContainer = document.getElementById('result-container');
     const fullNameElement = document.getElementById('full-name');
     const totalPriceElement = document.getElementById('total-price');
     let currentSuggestions = [];
+    let optionsValid = true;
+
+    function showError(message) {
+        if (errorBox && errorMessage) {
+            errorMessage.textContent = message || '';
+            errorBox.style.display = message ? 'block' : 'none';
+        }
+        optionsValid = !message;
+        if (!optionsValid) {
+            submitBtn.disabled = true;
+        } else if (currentSuggestions.includes(baseNameInput.value)) {
+            submitBtn.disabled = false;
+        }
+    }
+
+    function validateOptionsOnChange() {
+        // Требуется выбранный тип продукта и базовое название, чтобы бэкенд мог найти BasicPrice
+        const baseName = (baseNameInput.value || '').trim();
+        if (!productTypeSelect.value || !baseName) {
+            return;
+        }
+        // Запускаем валидацию только если текущее значение выбрано из подсказок
+        if (!currentSuggestions.includes(baseName)) {
+            return;
+        }
+        const form = document.getElementById('config-form');
+        const formData = new FormData(form);
+        fetch(`{% url 'configuration:validate_options' %}`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            }
+        }).then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Ошибка валидации опций');
+                });
+            }
+            return response.json();
+        }).then(() => {
+            showError('');
+        }).catch(err => {
+            showError(err.message);
+        });
+    }
 
     function resetResultContainer() {
         if (fullNameElement) {
@@ -126,6 +174,7 @@
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
             currentSuggestions = [];
+            showError('');
 
             fetch(`{% url 'configuration:get_options' %}?type_slug=${this.value}`)
             .then(response => response.json())
@@ -139,12 +188,16 @@
                   const optionHTML = createOptionHTML(opt);
                   optionsContainer.insertAdjacentHTML('beforeend', optionHTML);
               });
+              // После подгрузки опций сбрасываем ошибку и проверяем ограничения
+              showError('');
+              //validateOptionsOnChange();
             });
         } else {
             baseNameInput.disabled = true;
             suggestionsDiv.style.display = 'none';
             submitBtn.disabled = true;
             currentSuggestions = [];
+            showError('');
         }
     });
 
@@ -209,6 +262,13 @@
             }
             submitBtn.disabled = true;
         }
+        // При изменении имени запускаем повторную валидацию опций
+        //validateOptionsOnChange();
+    });
+
+    // Валидация ограничений при изменении любой опции
+    optionsContainer.addEventListener('change', function() {
+        validateOptionsOnChange();
     });
 
     document.getElementById('config-form').addEventListener('submit', function(e) {
@@ -224,18 +284,17 @@
       .then(async response => {
         const data = await response.json();
         if (!response.ok) {
-            document.getElementById('error-message').textContent = data.error || 'Ошибка';
-            document.getElementById('error').style.display = 'block';
+            showError(data.error || 'Ошибка');
             resetResultContainer();
             return;
         }
-        document.getElementById('error').style.display = 'none';
+        showError('');
         document.getElementById('full-name').textContent = data.full_name;
         document.getElementById('total-price').textContent = data.total_price;
         document.getElementById('result-container').style.display = 'block';
       })
       .catch(error => {
-          console.error('Ошибка:', error);
+          showError(error.message || 'Ошибка');
       });
     });
     let currentIndex = -1;

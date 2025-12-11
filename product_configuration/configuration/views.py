@@ -130,6 +130,26 @@ def index(request):
         return render(request, 'configuration/index.html', {'product_types': types})
 
 
+@login_required(login_url='auth/login/', redirect_field_name='')
+def validate_options(request):
+    """Промежуточная валидация ограничений опций без сохранения конфигурации."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Только POST'}, status=405)
+    try:
+        base_name = (request.POST.get('base_name') or '').strip()
+        if not base_name:
+            return JsonResponse({'error': 'Не выбрано наименование базового продукта'}, status=400)
+        device = get_device(request)
+        processor = ProcessingDevice(device)
+        if processor.validate_constraints:
+            return JsonResponse({'ok': True})
+    except (OptionConstraintWorked, OptionDoesNotExist) as error:
+        return JsonResponse({'error': str(error)}, status=400)
+    except Exception as error:
+        return JsonResponse({'error': str(error)}, status=400)
+    return JsonResponse({'ok': True})
+
+
 def autocomplete_base_products(request):
     query = request.GET.get('q', '')
     type_slug = request.GET.get('type_slug', '')
@@ -167,7 +187,6 @@ def get_options(request):
             'slug': option.slug,
             'name': option.name,
             'description': option.description,
-            # Массив возможных значений объемов подключения опции
             'value': option.values or [],
         }
         for option in options

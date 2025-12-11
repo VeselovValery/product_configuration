@@ -167,7 +167,7 @@ class NsMe(Device):
                 )
 
 
-class NsFs(Device):
+class DeviceFs(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
@@ -318,7 +318,8 @@ class ProcessingDevice:
 def get_device(request):
     devices = {
         'nsme': NsMe,
-        'nsfs': NsFs
+        'nsfs': DeviceFs,
+        # 'shupnfs': DeviceFs
     }
     device_type = request.POST.get('product_type')
     if device_type not in devices:
