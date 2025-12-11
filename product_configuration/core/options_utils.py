@@ -4,9 +4,9 @@ from typing import Protocol
 from functools import cached_property
 from django.core.handlers.wsgi import WSGIRequest
 
-from configuration.models import BasicPrice, OptionsProfile, OptionsPrice
+from configuration.models import BasicPrice, OptionsProfile, OptionsPrice, OptionsConstraint
 
-from .errors import OptionDoesNotExist
+from .errors import OptionDoesNotExist, OptionConstraintWorked
 
 # Таблица с заменой обозначения тока жокей насоса
 REPLACE_CURRENT_JOCKEY = {
@@ -46,6 +46,10 @@ class NamingDevice(Protocol):
     def total_price(self) -> int:
         ...
 
+    @cached_property
+    def validate_constraints(self) -> bool:
+        ...
+
     def update_data(self, options: dict, value: int):
         ...
 
@@ -58,7 +62,7 @@ class Device:
     def __init__(self, request: 'WSGIRequest'):
         self.request = request
         self.basic_product = BasicPrice.objects.get(name=request.POST.get('base_name'))
-        self.product_type = self.basic_product.product_type.slug
+        self.product_type = self.basic_product.product_type
         self.parts_full_name = [self.basic_product.name, '', '']
 
     @cached_property
@@ -80,6 +84,25 @@ class Device:
     @cached_property
     def full_name(self):
         return ''.join(self.parts_full_name)
+
+    @cached_property
+    def validate_constraints(self):
+        constraints = OptionsConstraint.objects.filter(product_type__slug=self.product_type.slug)
+        for constraint in constraints.prefetch_related('options'):
+            # related_options = [option for option in constraint.options.all()]
+            # related_slugs = {option.slug for option in related_options}
+            related_slugs = {option.slug for option in constraint.options.all()}
+            if constraint.max_total_value == 0:
+                selected_slug = {slug for slug, value in self.value_selected_options.items() if slug in related_slugs}
+                if selected_slug == related_slugs:
+                    # raise OptionsCannotUsedTogether(constraint.title)
+                    raise OptionConstraintWorked(constraint.title)
+            else:
+                total = sum(int(value) for slug, value in self.value_selected_options.items() if slug in related_slugs)
+                if total > constraint.max_total_value:
+                    # raise OptionsMaxValueUse(related_options, constraint.max_total_value)
+                    raise OptionConstraintWorked(constraint.title)
+        return True
 
     def update_data(self, option_slug: str, value: str):
         pass
@@ -259,9 +282,6 @@ class NsFs(Device):
                     counter=7
                 )
 
-    # def validate_constraints(self):
-
-
 
 class ProcessingDevice:
 
@@ -285,6 +305,13 @@ class ProcessingDevice:
         try:
             return self._device.total_price
         except OptionDoesNotExist:
+            raise
+
+    @cached_property
+    def validate_constraints(self):
+        try:
+            return self._device.validate_constraints
+        except OptionConstraintWorked:
             raise
 
 
