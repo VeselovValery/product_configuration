@@ -115,7 +115,7 @@ class Device:
             raise OptionDoesNotExist(option_slug)
 
 
-class NsMe(Device):
+class DeviceME(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
@@ -167,7 +167,7 @@ class NsMe(Device):
                 )
 
 
-class DeviceFs(Device):
+class DeviceFS(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
@@ -283,6 +283,103 @@ class DeviceFs(Device):
                 )
 
 
+class DeviceMPC(Device):
+
+    def __init__(self, request: 'WSGIRequest'):
+        super().__init__(request)
+        self.properties = {}
+        self.option_part_name_1 = []
+        self.option_part_name_2 = []
+        self.parts_full_name = [self.basic_product.name, self.option_part_name_1, self.option_part_name_2]
+        self.dispatching = {
+            'mpcmodbus': [1, '1'],
+            'mpcgsm': [2, '2'],
+            'mpcfcdoor': [3, '3'],
+            'mpc16di': [4, '4'],
+            'mpc16do': [5, '5'],
+            'mpc8ai': [6, '6'],
+            'mpc8ao': [7, '7']
+        }
+        self.mpc_bypass = {'DOL': '-B1', 'SD': '-B2', 'SS': '-B3'}
+        self.mpc_filter = {'du/dt': '-UT', 'Синусоидальный': '-SW'}
+        self.input_protection = {'mpctransient': [1, 'T'], 'mpclightning': [1, 'L'], 'mpcphase': [2, 'P']}
+        self.pump_protection = {
+            'mpcelectrode': [1, 'DR'],
+            'mpcpt': [2, ''],
+            'mpcprotection': [3, 'MP'],
+            'mpcbattery': [4, 'AB']
+        }
+        self.indication = {
+            'mpcammeter': [1, 'A'],
+            'mpcvoltmeter': [2, 'V'],
+            'mpcisupply': [3, 'L1'],
+            'mpcialarm': [4, 'L2'],
+            'mpciwork': [5, 'L3'],
+            'mpcipumpwork': [6, 'L4'],
+            'mpchourmeter': [7, 'C1'],
+            'mpcstartmeter': [8, 'C2'],
+            'mpcsiren': [9, 'S'],
+            'mpcflashing': [10, 'F1'],
+            'mpcextflashing': [11, 'F2']
+        }
+        self.dry_run_protection = {'Реле': '-R', 'Датчик': '-S'}
+        self.out_sensor = {
+            'Датчик (1ОС)': '-A1',
+            'Датчик (1ОС+1РЕЗ)': '-A2',
+            'Диф.Датчик (1ОС)': '-D1',
+            'Диф.Датчик (1ОС+1РЕЗ)': '-D2'
+        }
+
+    def update_data(self, option_slug: str, value: str):
+        if option_slug == 'mpcavr':
+            self.parts_full_name[0] = replace_count_match(r'-[ABC]', self.parts_full_name[0], '-D', counter=1)
+        elif option_slug in ['mpccable', 'mpcdryprotec', 'mpcoutsensor']:
+            if not self.option_part_name_2:
+                self.option_part_name_2 = ['-K0', '-T2', '-R', '-A1', '-24']
+            if option_slug == 'mpccable':
+                self.option_part_name_2[0] = f'-K{int(value) // 5}'
+            elif option_slug == 'mpcdryprotec':
+                self.option_part_name_2[2] = self.dry_run_protection[value]
+            elif option_slug == 'mpcoutsensor':
+                self.option_part_name_2[3] = self.out_sensor[value]
+        else:
+            if not self.option_part_name_1:
+                self.option_part_name_1 = [
+                    [''] * 8,
+                    '',
+                    '',
+                    [''] * 3,
+                    [''] * 5,
+                    [''] * 12
+                ]
+            if option_slug in self.dispatching.keys():
+                self.option_part_name_1[0][0] = '-D'
+                option = self.dispatching[option_slug]
+                self.option_part_name_1[0][option[0]] = option[1]
+            elif option_slug == 'mpcbypass':
+                self.option_part_name_1[1] = self.mpc_bypass[value]
+            elif option_slug == 'mpcfilter':
+                self.option_part_name_1[2] = self.mpc_filter[value]
+            elif option_slug in self.input_protection.keys():
+                self.option_part_name_1[3][0] = '-'
+                option = self.input_protection[option_slug]
+                self.option_part_name_1[3][option[0]] = option[1]
+            elif option_slug in self.pump_protection.keys():
+                self.option_part_name_1[4][0] = '-'
+                option = self.pump_protection[option_slug]
+                if option_slug == 'mpcpt':
+                    self.option_part_name_1[4][option[0]] = f'P{value}'
+                else:
+                    self.option_part_name_1[4][option[0]] = option[1]
+            elif option_slug in self.indication.keys():
+                self.option_part_name_1[5][0] = '-'
+                option = self.indication[option_slug]
+                self.option_part_name_1[5][option[0]] = option[1]
+
+
+
+
+
 class ProcessingDevice:
 
     def __init__(self, device: NamingDevice):
@@ -317,9 +414,10 @@ class ProcessingDevice:
 
 def get_device(request):
     devices = {
-        'nsme': NsMe,
-        'nsfs': DeviceFs,
-        # 'shupnfs': DeviceFs
+        'nsme': DeviceME,
+        'nsfs': DeviceFS,
+        'shupnfs': DeviceFS,
+        'hydrompc': DeviceMPC
     }
     device_type = request.POST.get('product_type')
     if device_type not in devices:
