@@ -89,18 +89,14 @@ class Device:
     def validate_constraints(self):
         constraints = OptionsConstraint.objects.filter(product_type__slug=self.product_type.slug)
         for constraint in constraints.prefetch_related('options'):
-            # related_options = [option for option in constraint.options.all()]
-            # related_slugs = {option.slug for option in related_options}
             related_slugs = {option.slug for option in constraint.options.all()}
             if constraint.max_total_value == 0:
                 selected_slug = {slug for slug, value in self.value_selected_options.items() if slug in related_slugs}
                 if selected_slug == related_slugs:
-                    # raise OptionsCannotUsedTogether(constraint.title)
                     raise OptionConstraintWorked(constraint.title)
             else:
                 total = sum(int(value) for slug, value in self.value_selected_options.items() if slug in related_slugs)
                 if total > constraint.max_total_value:
-                    # raise OptionsMaxValueUse(related_options, constraint.max_total_value)
                     raise OptionConstraintWorked(constraint.title)
         return True
 
@@ -287,10 +283,10 @@ class DeviceMPC(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
-        self.properties = {}
+        self.properties = {'inputs': 1}
         self.option_part_name_1 = []
         self.option_part_name_2 = []
-        self.parts_full_name = [self.basic_product.name, self.option_part_name_1, self.option_part_name_2]
+        self.parts_full_name = [self.basic_product.name]
         self.dispatching = {
             'mpcmodbus': [1, '1'],
             'mpcgsm': [2, '2'],
@@ -330,10 +326,45 @@ class DeviceMPC(Device):
             'Диф.Датчик (1ОС+1РЕЗ)': '-D2'
         }
 
+    @cached_property
+    def total_price(self):
+        total_price = self.basic_product.price
+        value_pumps = getattr(self.basic_product, 'value_pumps', 1)
+        neutral = getattr(self.basic_product, 'neutral', 1)
+        for option_slug, value in self.value_selected_options.items():
+            try:
+                option_price = self.get_option_price(option_slug)
+                if option_slug in ['mpctransient', 'mpclightning']:
+                    total_price += ((self.properties.get('inputs', 1) + neutral) * option_price.price)
+                elif option_slug == 'mpcvoltmeter':
+                    total_price += (self.properties.get('inputs', 1) * option_price.price)
+                elif option_slug == 'mpcammeter':
+                    total_price += (value_pumps * option_price.price)
+                elif option_slug == 'mpccable':
+                    total_price += (value_pumps * option_price.price * int(value))
+                elif option_slug in ['mpcdryprotec', 'mpcoutsensor', 'mpcbypass', 'mpcfilter']:
+                    if value not in ['Реле', 'Датчик (1ОС)']:
+                        total_price += option_price.price
+                else:
+                    total_price += (option_price.price * int(value))
+            except OptionDoesNotExist:
+                raise
+        return total_price
+
+    @cached_property
+    def full_name(self):
+        option_name_1 = []
+        for item in self.option_part_name_1:
+            option_name_1.extend(item) if isinstance(item, list) else option_name_1.append(item)
+        self.parts_full_name.append(''.join(option_name_1))
+        self.parts_full_name.append(''.join(self.option_part_name_2))
+        return ''.join(self.parts_full_name)
+
     def update_data(self, option_slug: str, value: str):
         if option_slug == 'mpcavr':
-            self.parts_full_name[0] = replace_count_match(r'-[ABC]', self.parts_full_name[0], '-D', counter=1)
-        elif option_slug in ['mpccable', 'mpcdryprotec', 'mpcoutsensor']:
+            self.parts_full_name[0] = self.option_avr()
+            self.properties['inputs'] = 2
+        elif option_slug in ['mpccable', 'mpcdryprotec', 'mpcoutsensor'] and value not in ['Реле', 'Датчик (1ОС)']:
             if not self.option_part_name_2:
                 self.option_part_name_2 = ['-K0', '-T2', '-R', '-A1', '-24']
             if option_slug == 'mpccable':
@@ -376,8 +407,28 @@ class DeviceMPC(Device):
                 option = self.indication[option_slug]
                 self.option_part_name_1[5][option[0]] = option[1]
 
+    def option_avr(self):
+        return replace_count_match(r'-[ABC]', self.parts_full_name[0], '-D', counter=1)
 
 
+class CabinetMPC(DeviceMPC):
+
+    def __init__(self, request: 'WSGIRequest'):
+        super().__init__(request)
+
+    def option_avr(self):
+        patterns_search = [
+            r'-\d+A-',
+            r'-(?:24V|230V|690V|MV)-',
+            r'-\d+/\d+-',
+            r'-(?:SD|FC|SS|DOL)-',
+        ]
+        for pattern in patterns_search:
+            match = re.search(pattern, self.parts_full_name[0])
+            if match:
+                position = match.end() - 1
+                return self.parts_full_name[0][:position] + "-АВР" + self.parts_full_name[0][position:]
+        return self.parts_full_name[0]
 
 
 class ProcessingDevice:
@@ -417,7 +468,8 @@ def get_device(request):
         'nsme': DeviceME,
         'nsfs': DeviceFS,
         'shupnfs': DeviceFS,
-        'hydrompc': DeviceMPC
+        'hydrompc': DeviceMPC,
+        'shutpmpcv': CabinetMPC
     }
     device_type = request.POST.get('product_type')
     if device_type not in devices:
