@@ -28,6 +28,12 @@ def replace_count_match(pattern, string, replace, counter):
     return re.sub(pattern, replacer, string)
 
 
+def search_fragment(pattern, text):
+    match = re.search(pattern, text)
+    if match:
+        return match.group(1)
+
+
 class NamingDevice(Protocol):
     request: 'WSGIRequest'
     basic_product: 'BasicPrice'
@@ -417,18 +423,32 @@ class CabinetMPC(DeviceMPC):
         super().__init__(request)
 
     def option_avr(self):
-        patterns_search = [
-            r'-\d+A-',
-            r'-(?:24V|230V|690V|MV)-',
-            r'-\d+/\d+-',
-            r'-(?:SD|FC|SS|DOL)-',
-        ]
-        for pattern in patterns_search:
-            match = re.search(pattern, self.parts_full_name[0])
-            if match:
-                position = match.end() - 1
-                return self.parts_full_name[0][:position] + "-АВР" + self.parts_full_name[0][position:]
+        match = re.search(r'-FC', self.parts_full_name[0])
+        if match:
+            position = match.end()
+            return self.parts_full_name[0][:position] + "-АВР" + self.parts_full_name[0][position:]
         return self.parts_full_name[0]
+
+
+class PumpBM(Device):
+
+    def __init__(self, request: 'WSGIRequest'):
+        super().__init__(request)
+
+    def update_data(self, option_slug: str, value: str):
+        if option_slug == 'bmautomat':
+            execution_code = search_fragment(r' ([A-Z]+)(?=-)', self.parts_full_name[0])
+            if execution_code:
+                execution_code_parts = [letter for letter in execution_code if letter in ['S', 'N']]
+                execution_code_parts.insert(1, 'O')
+                self.parts_full_name[0] =
+
+
+                self.parts_full_name[0] = replace_count_match(
+                    r' ([A-Z]+)(?=-)',
+                    self.parts_full_name[0],
+                    '-C', counter=1
+                )
 
 
 class ProcessingDevice:
