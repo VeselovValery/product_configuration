@@ -435,20 +435,40 @@ class PumpBM(Device):
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
 
+    @cached_property
+    def total_price(self):
+        total_price = self.basic_product.price
+        for option_slug, value in self.value_selected_options.items():
+            try:
+                option_price = self.get_option_price(option_slug)
+                if value != 'EPDM':
+                    total_price += option_price.price
+            except OptionDoesNotExist:
+                raise
+        return total_price
+
     def update_data(self, option_slug: str, value: str):
-        if option_slug == 'bmautomat':
-            execution_code = search_fragment(r' ([A-Z]+)(?=-)', self.parts_full_name[0])
+        if option_slug in ['bmautomat', 'bmsensor', 'bmptcoff']:
+            execution_code = search_fragment(r'(?<= )([A-Z]+)(?=-)', self.parts_full_name[0])
             if execution_code:
-                execution_code_parts = [letter for letter in execution_code if letter in ['S', 'N']]
-                execution_code_parts.insert(1, 'O')
-                self.parts_full_name[0] =
-
-
-                self.parts_full_name[0] = replace_count_match(
-                    r' ([A-Z]+)(?=-)',
-                    self.parts_full_name[0],
-                    '-C', counter=1
+                if option_slug == 'bmautomat':
+                    execution_code_parts = [letter for letter in execution_code if letter in ['S', 'N']]
+                    execution_code_parts.insert(1, 'O') if execution_code_parts[0] == 'S' else execution_code_parts.insert(0, 'O')
+                elif option_slug == 'bmsensor':
+                    execution_code_parts = [letter for letter in execution_code if letter in ['S', 'R', 'O']]
+                    execution_code_parts.append('N')
+                elif option_slug == 'bmptcoff':
+                    execution_code_parts = [letter for letter in execution_code if letter in ['S', 'N']]
+                    execution_code_parts.insert(0, 'A')
+                self.parts_full_name[0] = re.sub(
+                    r'(?<= )([A-Z]+)(?=-)',
+                    ''.join(execution_code_parts),
+                    self.parts_full_name[0]
                 )
+        elif option_slug == 'bmelastomer':
+            replace = 'E' if value == 'EPDM' else 'V'
+            self.parts_full_name[0] = re.sub(r'(?<=-)[EV](?=-)', replace, self.parts_full_name[0])
+            self.parts_full_name[0] = re.sub(r'[EV]$', replace, self.parts_full_name[0])
 
 
 class ProcessingDevice:
@@ -489,7 +509,8 @@ def get_device(request):
         'nsfs': DeviceFS,
         'shupnfs': DeviceFS,
         'hydrompc': DeviceMPC,
-        'shutpmpcv': CabinetMPC
+        'shutpmpcv': CabinetMPC,
+        'bm': PumpBM
     }
     device_type = request.POST.get('product_type')
     if device_type not in devices:
