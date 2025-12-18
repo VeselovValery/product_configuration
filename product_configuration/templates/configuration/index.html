@@ -84,6 +84,18 @@
         }
     }
 
+    function resetResultContainer() {
+        if (fullNameElement) {
+            fullNameElement.textContent = '';
+        }
+        if (totalPriceElement) {
+            totalPriceElement.textContent = '';
+        }
+        if (resultContainer) {
+            resultContainer.style.display = 'none';
+        }
+    }
+
     function validateOptionsOnChange() {
         // Требуется выбранный тип продукта и базовое название, чтобы бэкенд мог найти BasicPrice
         const baseName = (baseNameInput.value || '').trim();
@@ -111,21 +123,11 @@
             return response.json();
         }).then(() => {
             showError('');
+            resetResultContainer();
         }).catch(err => {
             showError(err.message);
+            resetResultContainer();
         });
-    }
-
-    function resetResultContainer() {
-        if (fullNameElement) {
-            fullNameElement.textContent = '';
-        }
-        if (totalPriceElement) {
-            totalPriceElement.textContent = '';
-        }
-        if (resultContainer) {
-            resultContainer.style.display = 'none';
-        }
     }
 
     window.addEventListener('DOMContentLoaded', () => {

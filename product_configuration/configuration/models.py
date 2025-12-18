@@ -16,6 +16,12 @@ class ProductType(models.Model):
         unique=True,
         verbose_name='Наименование группы продуктов',
     )
+    series = models.TextField(
+        max_length=200,
+        null=True,
+        default=None,
+        verbose_name='Серия группы продуктов',
+    )
     status = models.CharField(
         max_length=30,
         choices=STATUS_CHOICES,
@@ -105,7 +111,7 @@ class OptionsProfile(models.Model):
         verbose_name_plural = 'Опции продуктов'
 
     def __str__(self):
-        return self.name
+        return f'{self.name} ({self.product_type.series})'
 
 
 class OptionsPrice(models.Model):

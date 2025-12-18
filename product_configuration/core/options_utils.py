@@ -31,7 +31,7 @@ def replace_count_match(pattern, string, replace, counter):
 def search_fragment(pattern, text):
     match = re.search(pattern, text)
     if match:
-        return match.group(1)
+        return match.groups()
 
 
 class NamingDevice(Protocol):
@@ -436,6 +436,22 @@ class PumpBM(Device):
         super().__init__(request)
 
     @cached_property
+    def validate_constraints(self):
+        try:
+            if super().validate_constraints:
+                if self.product_type.slug == 'bme':
+                    pump = search_fragment(r'(BME|BMNE)(\s+)([0-9]+)(?=-)', self.basic_product.name)
+                    if 'bmsensor' in self.value_selected_options:
+                        if pump[0] == 'BMNE':
+                            if int(pump[2]) in range(1, 21):
+                                raise OptionConstraintWorked(
+                                    'Опция Датчик давления не совместима с насосами серии BMNE1...BMNE20'
+                                )
+                return True
+        except OptionConstraintWorked:
+            raise
+
+    @cached_property
     def total_price(self):
         total_price = self.basic_product.price
         for option_slug, value in self.value_selected_options.items():
@@ -449,11 +465,12 @@ class PumpBM(Device):
 
     def update_data(self, option_slug: str, value: str):
         if option_slug in ['bmautomat', 'bmsensor', 'bmptcoff']:
-            execution_code = search_fragment(r'(?<= )([A-Z]+)(?=-)', self.parts_full_name[0])
+            execution_code = search_fragment(r'(?<= )([A-Z]+)(?=-)', self.parts_full_name[0])[0]
             if execution_code:
                 if option_slug == 'bmautomat':
                     execution_code_parts = [letter for letter in execution_code if letter in ['S', 'N']]
-                    execution_code_parts.insert(1, 'O') if execution_code_parts[0] == 'S' else execution_code_parts.insert(0, 'O')
+                    execution_code_parts.append('O')
+                    execution_code_parts.sort(reverse=True)
                 elif option_slug == 'bmsensor':
                     execution_code_parts = [letter for letter in execution_code if letter in ['S', 'R', 'O']]
                     execution_code_parts.append('N')
@@ -469,6 +486,29 @@ class PumpBM(Device):
             replace = 'E' if value == 'EPDM' else 'V'
             self.parts_full_name[0] = re.sub(r'(?<=-)[EV](?=-)', replace, self.parts_full_name[0])
             self.parts_full_name[0] = re.sub(r'[EV]$', replace, self.parts_full_name[0])
+
+
+class PumpBO(Device):
+
+    def __init__(self, request: 'WSGIRequest'):
+        super().__init__(request)
+
+    def update_data(self, option_slug: str, value: str):
+        if option_slug in ['boautomat', 'bosensor', 'bodifsensor']:
+            execution_code = search_fragment(r'(?<= )([A-Z]+)(?=-)', self.parts_full_name[0])[0]
+            execution_code_parts = [letter for letter in execution_code]
+            if execution_code:
+                if option_slug == 'boautomat':
+                    execution_code_parts[0] = 'O'
+                elif option_slug == 'bosensor':
+                    execution_code_parts[1] = 'N'
+                elif option_slug == 'bodifsensor':
+                    execution_code_parts[1] = 'D'
+                self.parts_full_name[0] = re.sub(
+                    r'(?<= )([A-Z]+)(?=-)',
+                    ''.join(execution_code_parts),
+                    self.parts_full_name[0]
+                )
 
 
 class ProcessingDevice:
@@ -510,7 +550,8 @@ def get_device(request):
         'shupnfs': DeviceFS,
         'hydrompc': DeviceMPC,
         'shutpmpcv': CabinetMPC,
-        'bm': PumpBM
+        'bm': PumpBM,
+        'bme': PumpBM
     }
     device_type = request.POST.get('product_type')
     if device_type not in devices:

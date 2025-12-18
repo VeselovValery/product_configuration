@@ -36,7 +36,10 @@ RUS_TO_LAT_TRANSLATION = str.maketrans({
 # Группировка типов продуктов для вывода опций по нескольким группам продукта
 GROUP_TYPE_PRODUCT = {
     'hydrompc': ['hydrompc', 'shutpmpcv'],
-    'nsfs': ['nsfs', 'shupnfs']
+    'nsfs': ['nsfs', 'shupnfs'],
+    'bme': ['bme', 'bm'],
+    'boe': ['boe', 'bo'],
+    'kmge': ['kmge', 'kmg']
 }
 
 
