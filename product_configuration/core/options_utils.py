@@ -430,6 +430,10 @@ class CabinetMPC(DeviceMPC):
         return self.parts_full_name[0]
 
 
+# class Pump(Device):
+
+
+
 class PumpBM(Device):
 
     def __init__(self, request: 'WSGIRequest'):
@@ -493,22 +497,40 @@ class PumpBO(Device):
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
 
+    @cached_property
+    def total_price(self):
+        total_price = self.basic_product.price
+        for option_slug, value in self.value_selected_options.items():
+            try:
+                option_price = self.get_option_price(option_slug)
+                if value != 'EPDM':
+                    total_price += option_price.price
+            except OptionDoesNotExist:
+                raise
+        return total_price
+
     def update_data(self, option_slug: str, value: str):
-        if option_slug in ['boautomat', 'bosensor', 'bodifsensor']:
+        if option_slug in ['boautomat', 'bosensor', 'bodiffsensor']:
             execution_code = search_fragment(r'(?<= )([A-Z]+)(?=-)', self.parts_full_name[0])[0]
             execution_code_parts = [letter for letter in execution_code]
+            print(option_slug)
+            if len(execution_code_parts) < 2:
+                execution_code_parts.append('')
             if execution_code:
                 if option_slug == 'boautomat':
                     execution_code_parts[0] = 'O'
                 elif option_slug == 'bosensor':
                     execution_code_parts[1] = 'N'
-                elif option_slug == 'bodifsensor':
+                elif option_slug == 'bodiffsensor':
                     execution_code_parts[1] = 'D'
                 self.parts_full_name[0] = re.sub(
                     r'(?<= )([A-Z]+)(?=-)',
                     ''.join(execution_code_parts),
                     self.parts_full_name[0]
                 )
+        elif option_slug == 'boelastomer':
+            replace = 'E' if value == 'EPDM' else 'V'
+            self.parts_full_name[0] = re.sub(r'[EV]$', replace, self.parts_full_name[0])
 
 
 class ProcessingDevice:
@@ -551,7 +573,9 @@ def get_device(request):
         'hydrompc': DeviceMPC,
         'shutpmpcv': CabinetMPC,
         'bm': PumpBM,
-        'bme': PumpBM
+        'bme': PumpBM,
+        'bo': PumpBO,
+        'boe': PumpBO
     }
     device_type = request.POST.get('product_type')
     if device_type not in devices:
