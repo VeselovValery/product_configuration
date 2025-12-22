@@ -49,6 +49,7 @@
           <div id="result-container" style="display: none; margin-top: 20px;" class="card">
             <div class="card-body">
                 <p><strong>Наименование: </strong><span id="full-name" class="label-bold"></span></p>
+                <p><strong>Артикул: </strong><span id="part-number" class="label-bold"></span></p>
                 <p><strong>Цена: </strong><span id="total-price" class="label-bold"></span> <strong>руб.</strong></p>
             </div>
           </div> <!-- result-container -->  
@@ -67,6 +68,7 @@
     const errorMessage = document.getElementById('error-message');
     const resultContainer = document.getElementById('result-container');
     const fullNameElement = document.getElementById('full-name');
+    const partNumberElement = document.getElementById('part-number');
     const totalPriceElement = document.getElementById('total-price');
     let currentSuggestions = [];
     let optionsValid = true;
@@ -87,6 +89,9 @@
     function resetResultContainer() {
         if (fullNameElement) {
             fullNameElement.textContent = '';
+        }
+        if (partNumberElement) {
+            partNumberElement.textContent = '';
         }
         if (totalPriceElement) {
             totalPriceElement.textContent = '';
@@ -265,7 +270,7 @@
             submitBtn.disabled = true;
         }
         // При изменении имени запускаем повторную валидацию опций
-        //validateOptionsOnChange();
+        validateOptionsOnChange();
     });
 
     // Валидация ограничений при изменении любой опции
@@ -292,6 +297,7 @@
         }
         showError('');
         document.getElementById('full-name').textContent = data.full_name;
+        document.getElementById('part-number').textContent = data.part_number;
         document.getElementById('total-price').textContent = data.total_price;
         document.getElementById('result-container').style.display = 'block';
       })

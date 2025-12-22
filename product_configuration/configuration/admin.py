@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, OptionsConstraint, Configuration
+from .models import (
+    ProductType,
+    BasicPrice,
+    OptionsProfile,
+    OptionsPrice,
+    OptionsConstraint,
+    Configuration,
+    OptionPartNumber
+)
 from core.constants import EMPTY_FILLING
 
 
@@ -74,13 +82,27 @@ class OptionsConstraintAdmin(admin.ModelAdmin):
     empty_value_display = EMPTY_FILLING
 
 
+@admin.register(OptionPartNumber)
+class OptionPartNumberAdmin(admin.ModelAdmin):
+    list_display = (
+        'pk',
+        'name',
+        'part_number',
+        'product_type',
+        'cost'
+    )
+    list_display_links = ('name',)
+    search_fields = ('name', 'part_number')
+    list_filter = ('product_type',)
+    empty_value_display = EMPTY_FILLING
+
+
 @admin.register(Configuration)
 class ConfigurationAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
         'name',
         'product_type',
-        'basic_product',
         'cost'
     )
     list_display_links = ('name',)

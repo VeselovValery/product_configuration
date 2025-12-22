@@ -12,7 +12,7 @@ from django.views.generic import ListView
 from django.core.exceptions import ValidationError
 
 from .forms import UploadCSVForm, ExportCSVForm
-from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Configuration, OptionsConstraint
+from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Configuration, OptionPartNumber
 from core.constants import STATUS_CHOICES
 
 from core.options_utils import get_device, ProcessingDevice
@@ -76,34 +76,15 @@ def normalize_status(raw_status: str) -> str:
     return 'active'
 
 
-# def validate_constraints(product_type, option_values):
-#     # option_values: dict[slug] -> int
-#     constraints = OptionsConstraint.objects.filter(product_type=product_type)
-#     for constraint in constraints.prefetch_related('options'):
-#         related_slugs = {opt.slug for opt in constraint.options.all()}
-#         total = sum(value for slug, value in option_values.items() if slug in related_slugs)
-#         if total > constraint.max_total_value:
-#             raise ValidationError(
-#                 f'Суммарный объём для {constraint.title} не может быть больше {constraint.max_total_value}.'
-#             )
-
-
 @login_required(login_url='auth/login/', redirect_field_name='')
 def index(request):
     if request.method == 'POST':
-        # product_type = ProductType.objects.get(slug=request.POST.get('product_type'))
         device = get_device(request)
         processor = ProcessingDevice(device)
         basic_product = processor.basic_product
-        # value_selected_options = processor.value_selected_options
         try:
-            # validate_constraints(basic_product.product_type.slug, value_selected_options)
             if processor.validate_constraints:
                 total_price = processor.total_price  # Цена конечного продукта с опциями
-                # Получаем стоимость опции из OptionsPrice и умножаем на выбранный объем
-                # variant = getattr(option, option_slug, 1)
-                # option_price = OptionsPrice.objects.get(option=option, variant=variant)
-                # total_price += (option_price.price * value)
                 # Формирование наименования опционального изделия
                 full_name = processor.full_name
                 # Запись данных о расчете
@@ -120,9 +101,21 @@ def index(request):
                     f'* {option.name} - {processor.value_selected_options[option.slug]}' for option in selected_options
                 ]
                 config.save()
+                options_device, created_options_device = OptionPartNumber.objects.get_or_create(
+                    name=full_name,
+                    defaults={
+                        'product_type': basic_product.product_type,
+                        'name': full_name,
+                        'part_number': 'по запросу',
+                        'options_value': config.options_value,
+                        'cost': total_price
+                    }
+                )
+                part_number = 'по запросу' if created_options_device else options_device.part_number
                 # Возврат названия и цены продукции
                 return JsonResponse({
                     'full_name': full_name,
+                    'part_number': part_number,
                     'total_price': total_price
                 })
         except (OptionConstraintWorked, OptionDoesNotExist) as error:

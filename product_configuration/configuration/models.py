@@ -170,6 +170,42 @@ class OptionsConstraint(models.Model):
         return self.title
 
 
+class OptionPartNumber(models.Model):
+    product_type = models.ForeignKey(
+        ProductType,
+        to_field='slug',
+        on_delete=models.CASCADE,
+        related_name='product_option_partnumber',
+        verbose_name='Группа продукта'
+    )
+    name = models.TextField(
+        max_length=200,
+        unique=True,
+        verbose_name='Наименование опционального продукта'
+    )
+    part_number = models.TextField(
+        max_length=200,
+        verbose_name='Артикул опционального продукта'
+    )
+    options_value = ArrayField(
+        models.TextField(max_length=256),
+        default=list,
+        verbose_name='Объем подключения опций (список)'
+    )
+    cost = models.IntegerField(
+        verbose_name='Стоимость опционального продукта '
+    )
+
+    class Meta:
+        ordering = ['name']
+        unique_together = ('name', 'part_number')
+        verbose_name = 'Стоимость опционального оборудования'
+        verbose_name_plural = 'Стоимость опционального оборудования'
+
+    def __str__(self):
+        return self.name
+
+
 class Configuration(models.Model):
     product_type = models.ForeignKey(
         ProductType,
