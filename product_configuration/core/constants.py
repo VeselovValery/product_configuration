@@ -10,5 +10,7 @@ TABLE_CHOICES = [
     ('BasicPrice', 'Базовый продукт'),
     ('OptionsProfile', 'Данные по опциям'),
     ('OptionsPrice', 'Стоимость опций'),
-    ('Configuration', 'Расчеты'),
+    ('OptionPartNumber', 'Опциональный продукт'),
 ]
+# Значение НДС
+VALUE_ADDED_TAX = 1 + (22 / 100)

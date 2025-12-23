@@ -89,7 +89,8 @@ class OptionPartNumberAdmin(admin.ModelAdmin):
         'name',
         'part_number',
         'product_type',
-        'cost'
+        'cost_without_vat',
+        'cost_with_vat'
     )
     list_display_links = ('name',)
     search_fields = ('name', 'part_number')

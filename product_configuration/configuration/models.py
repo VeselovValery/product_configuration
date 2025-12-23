@@ -51,6 +51,11 @@ class BasicPrice(models.Model):
         unique=True,
         verbose_name='Наименование базового продукта',
     )
+    part_number = models.TextField(
+        max_length=200,
+        default='по запросу',
+        verbose_name='Артикул опционального продукта'
+    )
     price = models.IntegerField(
         verbose_name='Цена базового продукта в руб. без НДС'
     )
@@ -59,6 +64,56 @@ class BasicPrice(models.Model):
         choices=STATUS_CHOICES,
         default='active',
         verbose_name='Текущий статус базового продукта'
+    )
+    value_pumps = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Кол-во насосов в установке'
+    )
+    main_pumps = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Кол-во основных насосов в установке'
+    )
+    reserve_pumps = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Кол-во резервных насосов в установке'
+    )
+    neutral = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Наличие нейтрали в установке'
+    )
+    mecable = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции удлинения кабеля для НС-МЕ'
+    )
+    meavr = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции АВР для НС-МЕ'
+    )
+    fscable = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции удлинения кабеля для НС-FS'
+    )
+    mpcavr = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции АВР для НС-МPC'
+    )
+    mpcammeter = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции Амперметр для НС-МPC'
+    )
+    mpccable = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции удлинения кабеля для НС-MPC'
     )
 
     class Meta:
@@ -192,8 +247,13 @@ class OptionPartNumber(models.Model):
         default=list,
         verbose_name='Объем подключения опций (список)'
     )
-    cost = models.IntegerField(
-        verbose_name='Стоимость опционального продукта '
+    cost_without_vat = models.IntegerField(
+        null=True,
+        verbose_name='Стоимость опционального продукта без НДС'
+    )
+    cost_with_vat = models.IntegerField(
+        null=True,
+        verbose_name='Стоимость опционального продукта c НДС'
     )
 
     class Meta:

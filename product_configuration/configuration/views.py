@@ -13,7 +13,7 @@ from django.core.exceptions import ValidationError
 
 from .forms import UploadCSVForm, ExportCSVForm
 from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Configuration, OptionPartNumber
-from core.constants import STATUS_CHOICES
+from core.constants import STATUS_CHOICES, VALUE_ADDED_TAX
 
 from core.options_utils import get_device, ProcessingDevice
 from core.errors import OptionDoesNotExist, OptionConstraintWorked
@@ -24,7 +24,7 @@ MODEL_MAP = {
     'BasicPrice': BasicPrice,
     'OptionsProfile': OptionsProfile,
     'OptionsPrice': OptionsPrice,
-    'Configuration': Configuration
+    'OptionPartNumber': OptionPartNumber
 }
 # Таблица замены похожих русских букв на английские для поиска
 RUS_TO_LAT_TRANSLATION = str.maketrans({
@@ -84,7 +84,8 @@ def index(request):
         basic_product = processor.basic_product
         try:
             if processor.validate_constraints:
-                total_price = processor.total_price  # Цена конечного продукта с опциями
+                total_price = processor.total_price  # Цена конечного продукта с опциями без НДС
+                total_price_vat = total_price * VALUE_ADDED_TAX
                 # Формирование наименования опционального изделия
                 full_name = processor.full_name
                 # Запись данных о расчете
@@ -108,7 +109,8 @@ def index(request):
                         'name': full_name,
                         'part_number': 'по запросу',
                         'options_value': config.options_value,
-                        'cost': total_price
+                        'cost_without_vat': total_price,
+                        'cost_with_vat': total_price_vat
                     }
                 )
                 part_number = 'по запросу' if created_options_device else options_device.part_number
@@ -116,7 +118,8 @@ def index(request):
                 return JsonResponse({
                     'full_name': full_name,
                     'part_number': part_number,
-                    'total_price': total_price
+                    'total_price': total_price,
+                    'total_price_vat': total_price_vat,
                 })
         except (OptionConstraintWorked, OptionDoesNotExist) as error:
             print(error)
@@ -234,6 +237,9 @@ def upload_data(request):
                     if 'values' in row:
                         values = (row['values'] or []).strip()
                         row['values'] = json.loads(values) if values else []
+                    if 'options_value' in row:
+                        values = (row['options_value'] or []).strip()
+                        row['options_value'] = json.loads(values) if values else []
                     if 'status' in row:
                         row['status'] = normalize_status(row.get('status'))
                     if lookup_value in existing:
@@ -283,8 +289,8 @@ def export_data(request):
                     if field_name in ['product_type', 'option']:
                         related_obj = getattr(obj, field_name)
                         value = getattr(related_obj, 'slug', '') if related_obj else ''
-                    elif field_name == 'values':
-                        value = json.dumps(getattr(obj, field_name))
+                    elif field_name in ['values', 'options_value']:
+                        value = json.dumps(getattr(obj, field_name), ensure_ascii=False)
                     else:
                         value = getattr(obj, field_name)
                     row.append(value)
