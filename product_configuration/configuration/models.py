@@ -65,55 +65,46 @@ class BasicPrice(models.Model):
         default='active',
         verbose_name='Текущий статус базового продукта'
     )
-    value_pumps = models.IntegerField(
+    fs_current_jockey = models.CharField(
+        max_length=50,
         null=True,
         blank=True,
-        verbose_name='Кол-во насосов в установке'
+        verbose_name='Диапазон тока жокей насоса в FS'
     )
-    main_pumps = models.IntegerField(
+    mpc_neutral = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Кол-во основных насосов в установке'
-    )
-    reserve_pumps = models.IntegerField(
-        null=True,
-        blank=True,
-        verbose_name='Кол-во резервных насосов в установке'
-    )
-    neutral = models.IntegerField(
-        null=True,
-        blank=True,
-        verbose_name='Наличие нейтрали в установке'
+        verbose_name='Наличие нейтрали в MPC'
     )
     mecable = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции удлинения кабеля для НС-МЕ'
+        verbose_name='Вариант опции удлинения кабеля для МЕ'
     )
     meavr = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции АВР для НС-МЕ'
+        verbose_name='Вариант опции АВР для МЕ'
     )
     fscable = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции удлинения кабеля для НС-FS'
+        verbose_name='Вариант опции удлинения кабеля для FS'
     )
     mpcavr = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции АВР для НС-МPC'
+        verbose_name='Вариант опции АВР для МPC'
     )
     mpcammeter = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции Амперметр для НС-МPC'
+        verbose_name='Вариант опции Амперметр для МPC'
     )
     mpccable = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции удлинения кабеля для НС-MPC'
+        verbose_name='Вариант опции удлинения кабеля для MPC'
     )
 
     class Meta:

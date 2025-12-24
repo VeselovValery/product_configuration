@@ -6,18 +6,7 @@ from django.core.handlers.wsgi import WSGIRequest
 
 from configuration.models import BasicPrice, OptionsProfile, OptionsPrice, OptionsConstraint
 
-from .errors import OptionDoesNotExist, OptionConstraintWorked
-
-# Таблица с заменой обозначения тока жокей насоса
-REPLACE_CURRENT_JOCKEY = {
-    '0,63-1': '2',
-    '1-1,6': '3',
-    '1,6-2,5': '4',
-    '2,5-4': '5',
-    '4-6': '6',
-    '6-9': '7',
-    '9-14': '8'
-}
+from .errors import OptionDoesNotExist, OptionConstraintWorked, PumpsDoesNotFind
 
 
 def replace_count_match(pattern, string, replace, counter):
@@ -121,7 +110,14 @@ class DeviceME(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
-        self.properties = {'master_pumps': 2}
+        self.master_pumps = 2
+
+    @cached_property
+    def value_pumps(self):
+        try:
+            return int(search_fragment(r'(?<=HC-ME )([1-9])(?= )', self.basic_product.name)[0])
+        except TypeError:
+            raise PumpsDoesNotFind(self.basic_product.name)
 
     @cached_property
     def total_price(self):
@@ -130,12 +126,12 @@ class DeviceME(Device):
             try:
                 option_price = self.get_option_price(option_slug)
                 if option_slug == 'medifsen':
-                    total_price += (self.properties.get('master_pumps', 2) * option_price.price)
+                    total_price += (self.master_pumps * option_price.price)
                 elif option_slug == 'mecable':
-                    total_price += (getattr(self.basic_product, 'value_pumps', 1) * option_price.price * int(value))
+                    total_price += (self.value_pumps * option_price.price * int(value))
                 else:
                     total_price += (option_price.price * int(value))
-            except OptionDoesNotExist:
+            except (OptionDoesNotExist, PumpsDoesNotFind):
                 raise
         return total_price
 
@@ -157,7 +153,7 @@ class DeviceME(Device):
                     f'{2 + int(value)}-',
                     counter=3
                 )
-                self.properties['master_pumps'] += int(value)
+                self.master_pumps += int(value)
             if option_slug == 'medifsen':
                 self.parts_full_name[1] = replace_count_match(r'-[KTRA]', self.parts_full_name[1], '-D', counter=4)
             if option_slug == 'mecable':
@@ -173,45 +169,64 @@ class DeviceFS(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
-        self.properties = {'valves': 1}
+        self.valves = 1
+        self.replace_current_jockey = {
+            '0,63-1': '2',
+            '1-1,6': '3',
+            '1,6-2,5': '4',
+            '2,5-4': '5',
+            '4-6': '6',
+            '6-9': '7',
+            '9-14': '8'
+        }
+
+    def value_pumps(self):
+        try:
+            return [int(elem) for elem in search_fragment(r'\s([1-9])/([1-9])\s', self.basic_product.name)]
+        except TypeError:
+            raise PumpsDoesNotFind(self.basic_product.name)
 
     @cached_property
     def total_price(self):
-        total_price = self.basic_product.price
-        main_pumps = getattr(self.basic_product, 'main_pumps', 1)
-        reserve_pumps = getattr(self.basic_product, 'reserve_pumps', 1)
-        for option_slug, value in self.value_selected_options.items():
-            try:
+        try:
+            print(self.value_selected_options)
+            total_price = self.basic_product.price
+            main_pumps, reserve_pumps = self.value_pumps()
+            value_pumps = main_pumps + reserve_pumps
+            for option_slug, value in self.value_selected_options.items():
                 option_price = self.get_option_price(option_slug)
                 if option_slug == 'fsupcurrent':
-                    total_price += (self.properties.get('valves', 1) * int(value) * option_price.price)
+                    total_price += (self.valves * int(value) * option_price.price)
                 elif option_slug == 'softstarter':
-                    value_soft_starter = main_pumps if value == 'Основные насосы' else main_pumps + reserve_pumps
+                    value_soft_starter = main_pumps if value == 'Основные насосы' else value_pumps
+                    print(value_soft_starter)
                     total_price += (value_soft_starter * option_price.price)
                 elif option_slug == 'fscable':
-                    total_price += ((main_pumps + reserve_pumps) * option_price.price * int(value))
+                    total_price += (value_pumps * option_price.price * int(value))
                 elif option_slug == 'fsjockey':
-                    total_price += option_price.price
+                    if value != 'Стандартный':
+                        total_price += option_price.price
                 else:
                     total_price += (option_price.price * int(value))
-            except OptionDoesNotExist:
-                raise
-        return total_price
+            return total_price
+        except (OptionDoesNotExist, PumpsDoesNotFind):
+            raise
 
     def update_data(self, option_slug: str, value: str):
         """
             Обновление свойств self.parts_full_name и self.properties.
         """
         if option_slug == 'fsjockey':
-            if value != getattr(self.basic_product, 'current_jockey', '0,63-1'):
-                if not self.parts_full_name[1]:
-                    self.parts_full_name[1] = '-S0T1000000000'
-                self.parts_full_name[1] = replace_count_match(
-                    r'[A-Z0-9]',
-                    self.parts_full_name[1],
-                    REPLACE_CURRENT_JOCKEY.get(value, '0'),
-                    counter=9
-                )
+            if value != 'Стандартный':
+                if value != getattr(self.basic_product, 'fs_current_jockey', '0,63-1'):
+                    if not self.parts_full_name[1]:
+                        self.parts_full_name[1] = '-S0T1000000000'
+                    self.parts_full_name[1] = replace_count_match(
+                        r'[A-Z0-9]',
+                        self.parts_full_name[1],
+                        self.replace_current_jockey.get(value, '0'),
+                        counter=9
+                    )
         elif option_slug == 'fscable':
             if not self.parts_full_name[2]:
                 self.parts_full_name[2] = '-K000000'
@@ -249,7 +264,7 @@ class DeviceFS(Device):
                     str(replace),
                     counter=counter
                 )
-                self.properties['valves'] += int(value)
+                self.valves += int(value)
             if option_slug == 'fsupcurrent':
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
@@ -289,7 +304,7 @@ class DeviceMPC(Device):
 
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
-        self.properties = {'inputs': 1}
+        self.inputs = 1
         self.option_part_name_1 = []
         self.option_part_name_2 = []
         self.parts_full_name = [self.basic_product.name]
@@ -333,27 +348,34 @@ class DeviceMPC(Device):
         }
 
     @cached_property
+    def value_pumps(self):
+        pattern = r'Hydro MPC\s+([0-9]+)\s+BM' if self.product_type.slug == 'hydrompc' else r'ШУТП-MPC-B-([0-9]+)x'
+        try:
+            return int(search_fragment(pattern, self.basic_product.name)[0])
+        except TypeError:
+            raise PumpsDoesNotFind(self.basic_product.name)
+
+    @cached_property
     def total_price(self):
         total_price = self.basic_product.price
-        value_pumps = getattr(self.basic_product, 'value_pumps', 1)
-        neutral = getattr(self.basic_product, 'neutral', 1)
+        neutral = getattr(self.basic_product, 'mpc_neutral', 1)
         for option_slug, value in self.value_selected_options.items():
             try:
                 option_price = self.get_option_price(option_slug)
                 if option_slug in ['mpctransient', 'mpclightning']:
-                    total_price += ((self.properties.get('inputs', 1) + neutral) * option_price.price)
+                    total_price += ((self.inputs + neutral) * option_price.price)
                 elif option_slug == 'mpcvoltmeter':
-                    total_price += (self.properties.get('inputs', 1) * option_price.price)
+                    total_price += (self.inputs * option_price.price)
                 elif option_slug == 'mpcammeter':
-                    total_price += (value_pumps * option_price.price)
+                    total_price += (self.value_pumps * option_price.price)
                 elif option_slug == 'mpccable':
-                    total_price += (value_pumps * option_price.price * int(value))
+                    total_price += (self.value_pumps * option_price.price * int(value))
                 elif option_slug in ['mpcdryprotec', 'mpcoutsensor', 'mpcbypass', 'mpcfilter']:
                     if value not in ['Реле', 'Датчик (1ОС)']:
                         total_price += option_price.price
                 else:
                     total_price += (option_price.price * int(value))
-            except OptionDoesNotExist:
+            except (OptionDoesNotExist, PumpsDoesNotFind):
                 raise
         return total_price
 
@@ -369,7 +391,7 @@ class DeviceMPC(Device):
     def update_data(self, option_slug: str, value: str):
         if option_slug == 'mpcavr':
             self.parts_full_name[0] = self.option_avr()
-            self.properties['inputs'] = 2
+            self.inputs = 2
         elif option_slug in ['mpccable', 'mpcdryprotec', 'mpcoutsensor'] and value not in ['Реле', 'Датчик (1ОС)']:
             if not self.option_part_name_2:
                 self.option_part_name_2 = ['-K0', '-T2', '-R', '-A1', '-24']
@@ -571,7 +593,7 @@ class ProcessingDevice:
     def total_price(self):
         try:
             return self._device.total_price
-        except OptionDoesNotExist:
+        except (OptionDoesNotExist, PumpsDoesNotFind):
             raise
 
     @cached_property

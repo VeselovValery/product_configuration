@@ -16,7 +16,7 @@ from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Confi
 from core.constants import STATUS_CHOICES, VALUE_ADDED_TAX
 
 from core.options_utils import get_device, ProcessingDevice
-from core.errors import OptionDoesNotExist, OptionConstraintWorked
+from core.errors import OptionDoesNotExist, OptionConstraintWorked, PumpsDoesNotFind
 
 
 # Таблицы для загрузки и выгрузки
@@ -102,18 +102,21 @@ def index(request):
                     f'* {option.name} - {processor.value_selected_options[option.slug]}' for option in selected_options
                 ]
                 config.save()
-                options_device, created_options_device = OptionPartNumber.objects.get_or_create(
-                    name=full_name,
-                    defaults={
-                        'product_type': basic_product.product_type,
-                        'name': full_name,
-                        'part_number': 'по запросу',
-                        'options_value': config.options_value,
-                        'cost_without_vat': total_price,
-                        'cost_with_vat': total_price_vat
-                    }
-                )
-                part_number = 'по запросу' if created_options_device else options_device.part_number
+                if full_name != basic_product.name:
+                    options_device, created_options_device = OptionPartNumber.objects.get_or_create(
+                        name=full_name,
+                        defaults={
+                            'product_type': basic_product.product_type,
+                            'name': full_name,
+                            'part_number': 'по запросу',
+                            'options_value': config.options_value,
+                            'cost_without_vat': total_price,
+                            'cost_with_vat': total_price_vat
+                        }
+                    )
+                    part_number = 'по запросу' if created_options_device else options_device.part_number
+                else:
+                    part_number = basic_product.part_number
                 # Возврат названия и цены продукции
                 return JsonResponse({
                     'full_name': full_name,
@@ -121,8 +124,7 @@ def index(request):
                     'total_price': total_price,
                     'total_price_vat': total_price_vat,
                 })
-        except (OptionConstraintWorked, OptionDoesNotExist) as error:
-            print(error)
+        except (OptionConstraintWorked, OptionDoesNotExist, PumpsDoesNotFind) as error:
             return JsonResponse({'error': str(error)}, status=400)
     else:
         types = ProductType.objects.filter(status='active')

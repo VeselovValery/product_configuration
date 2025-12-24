@@ -17,3 +17,12 @@ class OptionConstraintWorked(Exception):
 
     def __str__(self):
         return self.text
+
+
+class PumpsDoesNotFind(Exception):
+    def __init__(self, text):
+        self.text = text
+        super().__init__(self.text)
+
+    def __str__(self):
+        return f'Не возможно определить кол-во потребителей по имени продукта {self.text}'
