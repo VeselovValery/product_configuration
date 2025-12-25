@@ -111,6 +111,12 @@ class DeviceME(Device):
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
         self.master_pumps = 2
+        self.base_options = {
+            'meavr': ['-C', 1],
+            'meexecution': ['-C', 3],
+            'mefloor': ['-C', 4]
+        }
+
 
     @cached_property
     def value_pumps(self):
@@ -129,6 +135,9 @@ class DeviceME(Device):
                     total_price += (self.master_pumps * option_price.price)
                 elif option_slug == 'mecable':
                     total_price += (self.value_pumps * option_price.price * int(value))
+                elif option_slug == 'meexecution':
+                    if value != 'Стандартное':
+                        total_price += self.value_pumps * option_price.price
                 else:
                     total_price += (option_price.price * int(value))
             except (OptionDoesNotExist, PumpsDoesNotFind):
@@ -139,11 +148,22 @@ class DeviceME(Device):
         """
             Обновление свойств self.parts_full_name и self.properties.
         """
-        if option_slug == 'meavr':
-            self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=1)
-        if option_slug == 'mefloor':
-            self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=4)
-        if option_slug in ['meaddmas', 'medifsen', 'mecable']:
+        if option_slug in self.base_options.keys():
+            if value != 'Стандартное':
+                self.parts_full_name[0] = replace_count_match(
+                    r'-[ABCDR]',
+                    self.parts_full_name[0],
+                    self.base_options[option_slug][0],
+                    counter=self.base_options[option_slug][1]
+                )
+        # if option_slug == 'meavr':
+        #     self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=1)
+        # elif option_slug == 'meexecution':
+        #     if value != 'Стандартное':
+        #         self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=3)
+        # elif option_slug == 'mefloor':
+        #     self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=4)
+        elif option_slug in ['meaddmas', 'medifsen', 'mecable', 'metank']:
             if not self.parts_full_name[1]:
                 self.parts_full_name[1] = '-K0-T2-R-A2-24'
             if option_slug == 'meaddmas':
@@ -154,9 +174,9 @@ class DeviceME(Device):
                     counter=3
                 )
                 self.master_pumps += int(value)
-            if option_slug == 'medifsen':
+            elif option_slug == 'medifsen':
                 self.parts_full_name[1] = replace_count_match(r'-[KTRA]', self.parts_full_name[1], '-D', counter=4)
-            if option_slug == 'mecable':
+            elif option_slug == 'mecable':
                 self.parts_full_name[1] = replace_count_match(
                     r'(?<=[A-Za-zА-Яа-яЁё])\d-',
                     self.parts_full_name[1],
@@ -189,7 +209,6 @@ class DeviceFS(Device):
     @cached_property
     def total_price(self):
         try:
-            print(self.value_selected_options)
             total_price = self.basic_product.price
             main_pumps, reserve_pumps = self.value_pumps()
             value_pumps = main_pumps + reserve_pumps
@@ -197,9 +216,8 @@ class DeviceFS(Device):
                 option_price = self.get_option_price(option_slug)
                 if option_slug == 'fsupcurrent':
                     total_price += (self.valves * int(value) * option_price.price)
-                elif option_slug == 'softstarter':
+                elif option_slug == 'fssoftstarter':
                     value_soft_starter = main_pumps if value == 'Основные насосы' else value_pumps
-                    print(value_soft_starter)
                     total_price += (value_soft_starter * option_price.price)
                 elif option_slug == 'fscable':
                     total_price += (value_pumps * option_price.price * int(value))
@@ -242,7 +260,7 @@ class DeviceFS(Device):
             matches_valves = re.findall(r'[ST](\d)', self.parts_full_name[1])
             digit_after_s = int(matches_valves[0])
             digit_after_t = int(matches_valves[1])
-            if option_slug == 'volbasevalve':
+            if option_slug == 'fsvolbasevalve':
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
                     self.parts_full_name[1],
@@ -280,7 +298,7 @@ class DeviceFS(Device):
                     replace,
                     counter=3
                 )
-            if option_slug in ['colorcabinet', 'noneutral']:
+            if option_slug in ['fscolorcabinet', 'fsnoneutral']:
                 matches_execution = re.findall(r'[A-Z0-9]', self.parts_full_name[1])
                 digit_execution = int(matches_execution[9])
                 replace = digit_execution + 1 if option_slug == 'colorcabinet' else digit_execution + 2
@@ -290,7 +308,7 @@ class DeviceFS(Device):
                     str(replace),
                     counter=10
                 )
-            if option_slug == 'softstarter':
+            if option_slug == 'fssoftstarter':
                 replace = 'M' if value == 'Основные насосы' else 'A'
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
