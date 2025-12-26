@@ -111,10 +111,49 @@ class DeviceME(Device):
     def __init__(self, request: 'WSGIRequest'):
         super().__init__(request)
         self.master_pumps = 2
-        self.base_options = {
-            'meavr': ['-C', 1],
-            'meexecution': ['-C', 3],
-            'mefloor': ['-C', 4]
+        self.options = {
+            'meavr': {
+                'pattern': r'-[ABCDR]',
+                'counter': 1,
+                'replace': lambda value: '-C',
+                'cost': lambda price, value, pumps: price
+            },
+            'meexecution': {
+                'pattern': r'-[ABCDR]',
+                'counter': 3,
+                'replace': lambda value: '-C',
+                'cost': lambda price, value, pumps: price * pumps
+            },
+            'mefloor': {
+                'pattern': r'-[ABCDR]',
+                'counter': 4,
+                'replace': lambda value: '-C',
+                'cost': lambda price, value, pumps: price
+            },
+            'meaddmas': {
+                'pattern': r'(?<=[A-Za-zА-Яа-яЁё])\d-',
+                'counter': 3,
+                'replace': lambda value: f'{2 + int(value)}-',
+                'cost': lambda price, value, pumps: price * int(value)
+            },
+            'medifsen': {
+                'pattern': r'-[KTRA]',
+                'counter': 4,
+                'replace': lambda value: '-D',
+                'cost': lambda price, value, pumps: price * pumps
+            },
+            'mecable': {
+                'pattern': r'(?<=[A-Za-zА-Яа-яЁё])\d-',
+                'counter': 1,
+                'replace': lambda value: f'{int(value) // 5}-',
+                'cost': lambda price, value, pumps: price * pumps * int(value)
+            },
+            'metank': {
+                'pattern': r'(?<=-)[0-9]+$',
+                'counter': 1,
+                'replace': lambda value: f'{value}',
+                'cost': lambda price, value, pumps: price
+            }
         }
 
 
@@ -126,20 +165,27 @@ class DeviceME(Device):
             raise PumpsDoesNotFind(self.basic_product.name)
 
     @cached_property
+    def validate_constraints(self):
+        try:
+            if super().validate_constraints:
+                if 'meaddmas' in self.value_selected_options.keys():
+                    if self.master_pumps > self.value_pumps:
+                        raise OptionConstraintWorked(
+                            'Кол-во мастер насосов больше общего числа насосов в установке'
+                        )
+                return True
+        except OptionConstraintWorked:
+            raise
+
+    @cached_property
     def total_price(self):
         total_price = self.basic_product.price
         for option_slug, value in self.value_selected_options.items():
             try:
-                option_price = self.get_option_price(option_slug)
-                if option_slug == 'medifsen':
-                    total_price += (self.master_pumps * option_price.price)
-                elif option_slug == 'mecable':
-                    total_price += (self.value_pumps * option_price.price * int(value))
-                elif option_slug == 'meexecution':
-                    if value != 'Стандартное':
-                        total_price += self.value_pumps * option_price.price
-                else:
-                    total_price += (option_price.price * int(value))
+                if value not in ['Стандартное', '24']:
+                    option_price = self.get_option_price(option_slug)
+                    pumps = self.master_pumps if option_slug == 'medifsen' else self.value_pumps
+                    total_price += self.options[option_slug]['cost'](option_price.price, value, pumps)
             except (OptionDoesNotExist, PumpsDoesNotFind):
                 raise
         return total_price
@@ -148,41 +194,30 @@ class DeviceME(Device):
         """
             Обновление свойств self.parts_full_name и self.properties.
         """
-        if option_slug in self.base_options.keys():
-            if value != 'Стандартное':
-                self.parts_full_name[0] = replace_count_match(
-                    r'-[ABCDR]',
-                    self.parts_full_name[0],
-                    self.base_options[option_slug][0],
-                    counter=self.base_options[option_slug][1]
-                )
-        # if option_slug == 'meavr':
-        #     self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=1)
-        # elif option_slug == 'meexecution':
-        #     if value != 'Стандартное':
-        #         self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=3)
-        # elif option_slug == 'mefloor':
-        #     self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=4)
-        elif option_slug in ['meaddmas', 'medifsen', 'mecable', 'metank']:
-            if not self.parts_full_name[1]:
-                self.parts_full_name[1] = '-K0-T2-R-A2-24'
+        if value not in ['Стандартное', '24']:
+            if option_slug in ['meaddmas', 'medifsen', 'mecable', 'metank']:
+                if not self.parts_full_name[1]:
+                    self.parts_full_name[1] = '-K0-T2-R-A2-24'
+                text_count = 1
+            else:
+                text_count = 0
+            self.parts_full_name[text_count] = replace_count_match(
+                self.options[option_slug]['pattern'],
+                self.parts_full_name[text_count],
+                self.options[option_slug]['replace'](value),
+                counter=self.options[option_slug]['counter']
+            )
+            if option_slug == 'mecable':
+                current_value = search_fragment(r'(?<=-)([ABCDR])$', self.parts_full_name[0])[0]
+                if current_value == 'A':
+                    self.parts_full_name[0] = replace_count_match(
+                        r'(?<=-)([ABCDR])$',
+                        self.parts_full_name[0],
+                        'B',
+                        counter=1
+                    )
             if option_slug == 'meaddmas':
-                self.parts_full_name[1] = replace_count_match(
-                    r'(?<=[A-Za-zА-Яа-яЁё])\d-',
-                    self.parts_full_name[1],
-                    f'{2 + int(value)}-',
-                    counter=3
-                )
                 self.master_pumps += int(value)
-            elif option_slug == 'medifsen':
-                self.parts_full_name[1] = replace_count_match(r'-[KTRA]', self.parts_full_name[1], '-D', counter=4)
-            elif option_slug == 'mecable':
-                self.parts_full_name[1] = replace_count_match(
-                    r'(?<=[A-Za-zА-Яа-яЁё])\d-',
-                    self.parts_full_name[1],
-                    f'{int(value) // 5}-',
-                    counter=1
-                )
 
 
 class DeviceFS(Device):
@@ -221,7 +256,8 @@ class DeviceFS(Device):
                     total_price += (value_soft_starter * option_price.price)
                 elif option_slug == 'fscable':
                     total_price += (value_pumps * option_price.price * int(value))
-                elif option_slug == 'fsjockey':
+                # elif option_slug == 'fsjockey':
+                elif option_slug in ['fsjockey', 'fscolorpump']:
                     if value != 'Стандартный':
                         total_price += option_price.price
                 else:
@@ -245,15 +281,25 @@ class DeviceFS(Device):
                         self.replace_current_jockey.get(value, '0'),
                         counter=9
                     )
-        elif option_slug == 'fscable':
-            if not self.parts_full_name[2]:
-                self.parts_full_name[2] = '-K000000'
-            self.parts_full_name[2] = replace_count_match(
-                r'[A-Z0-9]',
-                self.parts_full_name[2],
-                f'{int(value) // 5}',
-                counter=2
-            )
+        # elif option_slug == 'fscable':
+        elif option_slug in ['fscable', 'fscolorpump']:
+            if value != 'Стандартный':
+                if not self.parts_full_name[2]:
+                    self.parts_full_name[2] = '-K000000'
+                if option_slug == 'fscable':
+                    self.parts_full_name[2] = replace_count_match(
+                        r'[A-Z0-9]',
+                        self.parts_full_name[2],
+                        f'{int(value) // 5}',
+                        counter=2
+                    )
+                elif option_slug == 'fscolorpump':
+                    self.parts_full_name[2] = replace_count_match(
+                        r'[A-Z0-9]',
+                        self.parts_full_name[2],
+                        'R',
+                        counter=3
+                    )
         else:
             if not self.parts_full_name[1]:
                 self.parts_full_name[1] = '-S0T1000000000'
