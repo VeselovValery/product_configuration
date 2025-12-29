@@ -256,8 +256,10 @@ class DeviceFS(Device):
                     total_price += (value_soft_starter * option_price.price)
                 elif option_slug == 'fscable':
                     total_price += (value_pumps * option_price.price * int(value))
-                # elif option_slug == 'fsjockey':
-                elif option_slug in ['fsjockey', 'fscolorpump']:
+                elif option_slug == 'fsjockey':
+                    if value != 'Стандартный' and value != getattr(self.basic_product, 'fs_current_jockey', '0,63-1'):
+                        total_price += option_price.price
+                elif option_slug == 'fscolorpump':
                     if value != 'Стандартный':
                         total_price += option_price.price
                 else:
@@ -437,6 +439,9 @@ class DeviceMPC(Device):
                 elif option_slug in ['mpcdryprotec', 'mpcoutsensor', 'mpcbypass', 'mpcfilter']:
                     if value not in ['Реле', 'Датчик (1ОС)']:
                         total_price += option_price.price
+                elif option_slug in ['mpcexecution', 'mpctank']:
+                    if value not in ['Стандартное', '24']:
+                        total_price += option_price.price
                 else:
                     total_price += (option_price.price * int(value))
             except (OptionDoesNotExist, PumpsDoesNotFind):
@@ -453,18 +458,33 @@ class DeviceMPC(Device):
         return ''.join(self.parts_full_name)
 
     def update_data(self, option_slug: str, value: str):
-        if option_slug == 'mpcavr':
-            self.parts_full_name[0] = self.option_avr()
-            self.inputs = 2
-        elif option_slug in ['mpccable', 'mpcdryprotec', 'mpcoutsensor'] and value not in ['Реле', 'Датчик (1ОС)']:
+        if option_slug in ['mpcavr', 'mpcexecution', 'mpcfloor'] and value != 'Стандартное':
+            if option_slug == 'mpcavr':
+                self.parts_full_name[0] = self.option_avr()
+                self.inputs = 2
+            elif option_slug == 'mpcexecution':
+                self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=3)
+            elif option_slug == 'mpcfloor':
+                self.parts_full_name[0] = replace_count_match(r'-[ABCDR]', self.parts_full_name[0], '-C', counter=4)
+        elif option_slug in ['mpccable', 'mpcdryprotec', 'mpcoutsensor', 'mpctank'] and value not in ['Реле', 'Датчик (1ОС)', '24']:
             if not self.option_part_name_2:
                 self.option_part_name_2 = ['-K0', '-T2', '-R', '-A1', '-24']
             if option_slug == 'mpccable':
                 self.option_part_name_2[0] = f'-K{int(value) // 5}'
+                current_value = re.findall(r'(?<=-)[ABCDR]', self.parts_full_name[0])[3]
+                if current_value == 'A':
+                    self.parts_full_name[0] = replace_count_match(
+                        r'-[ABCDR]',
+                        self.parts_full_name[0],
+                        '-B',
+                        counter=4
+                    )
             elif option_slug == 'mpcdryprotec':
                 self.option_part_name_2[2] = self.dry_run_protection[value]
             elif option_slug == 'mpcoutsensor':
                 self.option_part_name_2[3] = self.out_sensor[value]
+            elif option_slug == 'mpctank':
+                self.option_part_name_2[4] = f'-{value}'
         else:
             if not self.option_part_name_1:
                 self.option_part_name_1 = [
