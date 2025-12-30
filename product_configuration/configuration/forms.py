@@ -1,11 +1,11 @@
 from django import forms
 
-from core.constants import TABLE_CHOICES
+from core.constants import TABLE_INPUT, TABLE_OUTPUT
 
 
 class UploadCSVForm(forms.Form):
     table = forms.ChoiceField(
-        choices=TABLE_CHOICES,
+        choices=TABLE_INPUT,
         label='Таблица БД',
         help_text='Выберите таблицу БД для обновления данных'
     )
@@ -26,7 +26,7 @@ class UploadCSVForm(forms.Form):
 
 class ExportCSVForm(forms.Form):
     table = forms.ChoiceField(
-        choices=TABLE_CHOICES,
+        choices=TABLE_OUTPUT,
         label='Таблица БД',
         help_text='Выберите таблицу БД для выгрузки данных'
     )

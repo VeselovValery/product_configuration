@@ -217,13 +217,13 @@ class OptionsConstraint(models.Model):
 
 
 class OptionPartNumber(models.Model):
-    product_type = models.ForeignKey(
-        ProductType,
-        to_field='slug',
-        on_delete=models.CASCADE,
-        related_name='product_option_partnumber',
-        verbose_name='Группа продукта'
-    )
+    # product_type = models.ForeignKey(
+    #     ProductType,
+    #     to_field='slug',
+    #     on_delete=models.CASCADE,
+    #     related_name='product_option_partnumber',
+    #     verbose_name='Группа продукта'
+    # )
     name = models.TextField(
         max_length=200,
         unique=True,
@@ -233,19 +233,11 @@ class OptionPartNumber(models.Model):
         max_length=200,
         verbose_name='Артикул опционального продукта'
     )
-    options_value = ArrayField(
-        models.TextField(max_length=256),
-        default=list,
-        verbose_name='Объем подключения опций (список)'
-    )
-    cost_without_vat = models.IntegerField(
-        null=True,
-        verbose_name='Стоимость опционального продукта без НДС'
-    )
-    cost_with_vat = models.IntegerField(
-        null=True,
-        verbose_name='Стоимость опционального продукта c НДС'
-    )
+    # options_value = ArrayField(
+    #     models.TextField(max_length=256),
+    #     default=list,
+    #     verbose_name='Объем подключения опций (список)'
+    # )
 
     class Meta:
         ordering = ['name']
@@ -260,7 +252,7 @@ class OptionPartNumber(models.Model):
 class Configuration(models.Model):
     product_type = models.ForeignKey(
         ProductType,
-        to_field='slug',
+        to_field='name',
         on_delete=models.CASCADE,
         related_name='product_configurations',
         verbose_name='Группа продукта'
@@ -285,8 +277,13 @@ class Configuration(models.Model):
         max_length=512,
         verbose_name='Наименование конечного продукта',
     )
-    cost = models.IntegerField(
-        verbose_name='Стоимость конечного продукта '
+    cost_without_vat = models.IntegerField(
+        null=True,
+        verbose_name='Стоимость опционального продукта без НДС'
+    )
+    cost_with_vat = models.IntegerField(
+        null=True,
+        verbose_name='Стоимость опционального продукта c НДС'
     )
     author = models.ForeignKey(
         get_user_model(),

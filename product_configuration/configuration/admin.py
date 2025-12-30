@@ -87,14 +87,10 @@ class OptionPartNumberAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
         'name',
-        'part_number',
-        'product_type',
-        'cost_without_vat',
-        'cost_with_vat'
+        'part_number'
     )
     list_display_links = ('name',)
     search_fields = ('name', 'part_number')
-    list_filter = ('product_type',)
     empty_value_display = EMPTY_FILLING
 
 
@@ -104,7 +100,8 @@ class ConfigurationAdmin(admin.ModelAdmin):
         'pk',
         'name',
         'product_type',
-        'cost'
+        'cost_without_vat',
+        'cost_with_vat'
     )
     list_display_links = ('name',)
     search_fields = ('name',)

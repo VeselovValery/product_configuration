@@ -5,11 +5,9 @@ import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db import connection
 from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
 from django.shortcuts import render
 from django.views.generic import ListView
-from django.core.exceptions import ValidationError
 
 from .forms import UploadCSVForm, ExportCSVForm
 from .models import ProductType, BasicPrice, OptionsProfile, OptionsPrice, Configuration, OptionPartNumber
@@ -24,7 +22,8 @@ MODEL_MAP = {
     'BasicPrice': BasicPrice,
     'OptionsProfile': OptionsProfile,
     'OptionsPrice': OptionsPrice,
-    'OptionPartNumber': OptionPartNumber
+    'OptionPartNumber': OptionPartNumber,
+    'Configuration': Configuration
 }
 # Таблица замены похожих русских букв на английские для поиска
 RUS_TO_LAT_TRANSLATION = str.maketrans({
@@ -93,7 +92,8 @@ def index(request):
                     product_type=basic_product.product_type,
                     basic_product=basic_product,
                     name=full_name,
-                    cost=total_price,
+                    cost_without_vat=total_price,
+                    cost_with_vat=total_price_vat,
                     author=request.user,
                 )
                 selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in processor.value_selected_options.items()]
@@ -106,12 +106,8 @@ def index(request):
                     options_device, created_options_device = OptionPartNumber.objects.get_or_create(
                         name=full_name,
                         defaults={
-                            'product_type': basic_product.product_type,
                             'name': full_name,
-                            'part_number': 'по запросу',
-                            'options_value': config.options_value,
-                            'cost_without_vat': total_price,
-                            'cost_with_vat': total_price_vat
+                            'part_number': 'по запросу'
                         }
                     )
                     part_number = 'по запросу' if created_options_device else options_device.part_number
@@ -219,6 +215,8 @@ def upload_data(request):
                 messages.error(request, 'Неизвестная таблица.')
                 return render(request, 'configuration/data_base.html', {'form': form})
             try:
+                if model_class is OptionPartNumber:
+                    model_class.objects.all().delete()
                 decoded_file = file.read().decode('utf-8-sig')
                 io_string = io.StringIO(decoded_file)
                 reader = csv.DictReader(io_string, delimiter=';')
