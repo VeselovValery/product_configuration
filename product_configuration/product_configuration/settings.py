@@ -30,8 +30,10 @@ SECRET_KEY = env_settings.SECRET_KEY
 DEBUG = env_settings.APP_DEBUG
 
 ALLOWED_HOSTS = [
+    '158.160.29.21',
     'localhost',
     '127.0.0.1',
+    'istratexcrm.ru'
 ]
 
 
@@ -139,6 +141,7 @@ if DEBUG:
     STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
 else:
     STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+    # STATIC_ROOT = '/var/www/static/'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
