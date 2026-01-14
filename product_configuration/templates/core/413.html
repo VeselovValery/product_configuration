@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Ошибка 413{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-md-8 p-5">
+      <div class="card text-center border-dark shadow-sm">
+        <h5 class="card-header border-dark text-white bg-custom-blue">ОШИБКА 413</h5>
+        <p class="card-body bg-custom-grey">
+          <h6>ПРЕВЫШЕН ДОПУСТИМЫЙ РАЗМЕР ПРИКЛАДЫВАЕМЫХ ФАЙЛОВ</h6>
+          <p>
+            Размер прикладываемых файлов не должен превышать 100 Мб
+          </p>
+      </div>
+    </div>
+  </div>
+{% endblock %}

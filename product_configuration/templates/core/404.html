@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Ошибка 404{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-md-8 p-5">
+      <div class="card text-center border-dark shadow-sm">
+        <h5 class="card-header border-dark text-white bg-custom-blue">ОШИБКА 404</h5>
+        <div class="card-body bg-custom-grey">
+          <h6 class="all-caps">СТРАНИЦЫ С АДРЕССОМ {{ path }} НЕ СУЩЕСТВУЕТ</h6>
+          <p>
+            <a href="{% url 'configuration:index' %}">Перейдите на главную страницу</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
