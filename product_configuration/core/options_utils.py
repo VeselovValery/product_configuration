@@ -183,11 +183,14 @@ class DeviceME(Device):
         for option_slug, value in self.value_selected_options.items():
             try:
                 if value not in ['Стандартное', '24']:
-                    option_price = self.get_option_price(option_slug)
+                    option_price = int(self.get_option_price(option_slug).price)
                     pumps = self.master_pumps if option_slug == 'medifsen' else self.value_pumps
-                    total_price += self.options[option_slug]['cost'](option_price.price, value, pumps)
+                    total_price += self.options[option_slug]['cost'](option_price, value, pumps)
             except (OptionDoesNotExist, PumpsDoesNotFind):
                 raise
+            except ValueError:
+                total_price = 'по запросу'
+                break
         return total_price
 
     def update_data(self, option_slug: str, value: str):
@@ -248,22 +251,26 @@ class DeviceFS(Device):
             main_pumps, reserve_pumps = self.value_pumps()
             value_pumps = main_pumps + reserve_pumps
             for option_slug, value in self.value_selected_options.items():
-                option_price = self.get_option_price(option_slug)
-                if option_slug == 'fsupcurrent':
-                    total_price += (self.valves * int(value) * option_price.price)
-                elif option_slug == 'fssoftstarter':
-                    value_soft_starter = main_pumps if value == 'Основные насосы' else value_pumps
-                    total_price += (value_soft_starter * option_price.price)
-                elif option_slug == 'fscable':
-                    total_price += (value_pumps * option_price.price * int(value))
-                elif option_slug == 'fsjockey':
-                    if value != 'Стандартный' and value != getattr(self.basic_product, 'fs_current_jockey', '0,63-1'):
-                        total_price += option_price.price
-                elif option_slug == 'fscolorpump':
-                    if value != 'Стандартный':
-                        total_price += option_price.price
-                else:
-                    total_price += (option_price.price * int(value))
+                try:
+                    option_price = int(self.get_option_price(option_slug).price)
+                    if option_slug == 'fsupcurrent':
+                        total_price += (self.valves * int(value) * option_price)
+                    elif option_slug == 'fssoftstarter':
+                        value_soft_starter = main_pumps if value == 'Основные насосы' else value_pumps
+                        total_price += (value_soft_starter * option_price)
+                    elif option_slug == 'fscable':
+                        total_price += (value_pumps * option_price * int(value))
+                    elif option_slug == 'fsjockey':
+                        if value != 'Стандартный' and value != getattr(self.basic_product, 'fs_current_jockey', '0,63-1'):
+                            total_price += option_price
+                    elif option_slug == 'fscolorpump':
+                        if value != 'Стандартный':
+                            total_price += option_price
+                    else:
+                        total_price += (option_price * int(value))
+                except ValueError:
+                    total_price = 'по запросу'
+                    break
             return total_price
         except (OptionDoesNotExist, PumpsDoesNotFind):
             raise
@@ -427,25 +434,36 @@ class DeviceMPC(Device):
         neutral = getattr(self.basic_product, 'mpc_neutral', 1)
         for option_slug, value in self.value_selected_options.items():
             try:
-                option_price = self.get_option_price(option_slug)
+                # option_price = self.get_option_price(option_slug)
+                option_price = int(self.get_option_price(option_slug).price)
                 if option_slug in ['mpctransient', 'mpclightning']:
-                    total_price += ((self.inputs + neutral) * option_price.price)
+                    # total_price += ((self.inputs + neutral) * option_price.price)
+                    total_price += ((self.inputs + neutral) * option_price)
                 elif option_slug == 'mpcvoltmeter':
-                    total_price += (self.inputs * option_price.price)
+                    # total_price += (self.inputs * option_price.price)
+                    total_price += (self.inputs * option_price)
                 elif option_slug == 'mpcammeter':
-                    total_price += (self.value_pumps * option_price.price)
+                    # total_price += (self.value_pumps * option_price.price)
+                    total_price += (self.value_pumps * option_price)
                 elif option_slug == 'mpccable':
-                    total_price += (self.value_pumps * option_price.price * int(value))
+                    # total_price += (self.value_pumps * option_price.price * int(value))
+                    total_price += (self.value_pumps * option_price * int(value))
                 elif option_slug in ['mpcdryprotec', 'mpcoutsensor', 'mpcbypass', 'mpcfilter']:
                     if value not in ['Реле', 'Датчик (1ОС)']:
-                        total_price += option_price.price
+                        # total_price += option_price.price
+                        total_price += option_price
                 elif option_slug in ['mpcexecution', 'mpctank']:
                     if value not in ['Стандартное', '24']:
-                        total_price += option_price.price
+                        # total_price += option_price.price
+                        total_price += option_price
                 else:
-                    total_price += (option_price.price * int(value))
+                    # total_price += (option_price.price * int(value))
+                    total_price += (option_price * int(value))
             except (OptionDoesNotExist, PumpsDoesNotFind):
                 raise
+            except ValueError:
+                total_price = 'по запросу'
+                break
         return total_price
 
     @cached_property
@@ -546,11 +564,16 @@ class Pump(Device):
         total_price = self.basic_product.price
         for option_slug, value in self.value_selected_options.items():
             try:
-                option_price = self.get_option_price(option_slug)
+                # option_price = self.get_option_price(option_slug)
+                option_price = int(self.get_option_price(option_slug).price)
                 if value != 'EPDM':
-                    total_price += option_price.price
+                    # total_price += option_price.price
+                    total_price += option_price
             except OptionDoesNotExist:
                 raise
+            except ValueError:
+                total_price = 'по запросу'
+                break
         return total_price
 
 

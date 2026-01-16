@@ -84,7 +84,7 @@ def index(request):
         try:
             if processor.validate_constraints:
                 total_price = processor.total_price  # Цена конечного продукта с опциями без НДС
-                total_price_vat = total_price * VALUE_ADDED_TAX
+                total_price_vat = total_price * VALUE_ADDED_TAX if type(total_price) is int else 'по запросу'
                 # Формирование наименования опционального изделия
                 full_name = processor.full_name
                 # Запись данных о расчете
