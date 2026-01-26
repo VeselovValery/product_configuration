@@ -76,20 +76,30 @@ class BasicPrice(models.Model):
         blank=True,
         verbose_name='Наличие нейтрали в MPC'
     )
-    mecable = models.IntegerField(
+    mpctransient = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции удлинения кабеля для МЕ'
+        verbose_name='Вариант опции ограничителя перенапряжения в MPC'
     )
-    meavr = models.IntegerField(
+    mpclightning = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции АВР для МЕ'
+        verbose_name='Вариант опции молниезащиты в MPC'
     )
-    fscable = models.IntegerField(
+    mpcdolbypass = models.IntegerField(
         null=True,
         blank=True,
-        verbose_name='Вариант опции удлинения кабеля для FS'
+        verbose_name='Вариант опции байпаса ПЧ (метод DOL) в MPC'
+    )
+    mpcsdbypass = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции байпаса ПЧ (метод SD) в MPC'
+    )
+    mpcfilter = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции фильтра du/dt в MPC'
     )
     mpcavr = models.IntegerField(
         null=True,
@@ -101,10 +111,40 @@ class BasicPrice(models.Model):
         blank=True,
         verbose_name='Вариант опции Амперметр для МPC'
     )
+    mpcexecution = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции нержавеющая обвязка для МPC'
+    )
     mpccable = models.IntegerField(
         null=True,
         blank=True,
         verbose_name='Вариант опции удлинения кабеля для MPC'
+    )
+    mecable = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции удлинения кабеля для МЕ'
+    )
+    meavr = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции АВР для МЕ'
+    )
+    mefloor = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции напольного исполнения шкафа для МЕ'
+    )
+    meexecution = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции нержавеющая обвязка для МЕ'
+    )
+    fscable = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Вариант опции удлинения кабеля для FS'
     )
 
     class Meta:

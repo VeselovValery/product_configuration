@@ -98,9 +98,9 @@ class Device:
     def update_data(self, option_slug: str, value: str):
         pass
 
-    def get_option_price(self, option_slug: str):
+    def get_option_price(self, option_slug: str, value_variant: int = None):
         try:
-            variant = getattr(self.basic_product, option_slug, 1)
+            variant = getattr(self.basic_product, option_slug, 1) if not value_variant else value_variant
             return OptionsPrice.objects.get(option__slug=option_slug, variant=variant)
         except OptionsPrice.DoesNotExist:
             raise OptionDoesNotExist(option_slug)
@@ -229,13 +229,13 @@ class DeviceFS(Device):
         super().__init__(request)
         self.valves = 1
         self.replace_current_jockey = {
-            '0,63-1': '2',
-            '1-1,6': '3',
-            '1,6-2,5': '4',
-            '2,5-4': '5',
-            '4-6': '6',
-            '6-9': '7',
-            '9-14': '8'
+            '0,63...1': '2',
+            '1...1,6': '3',
+            '1,6...2,5': '4',
+            '2,5...4': '5',
+            '4...6': '6',
+            '6...9': '7',
+            '9...14': '8'
         }
 
     def value_pumps(self):
@@ -261,7 +261,7 @@ class DeviceFS(Device):
                     elif option_slug == 'fscable':
                         total_price += (value_pumps * option_price * int(value))
                     elif option_slug == 'fsjockey':
-                        if value != 'Стандартный' and value != getattr(self.basic_product, 'fs_current_jockey', '0,63-1'):
+                        if value != 'Стандартный' and value != getattr(self.basic_product, 'fs_current_jockey', '0,63...1'):
                             total_price += option_price
                     elif option_slug == 'fscolorpump':
                         if value != 'Стандартный':
@@ -281,7 +281,7 @@ class DeviceFS(Device):
         """
         if option_slug == 'fsjockey':
             if value != 'Стандартный':
-                if value != getattr(self.basic_product, 'fs_current_jockey', '0,63-1'):
+                if value != getattr(self.basic_product, 'fs_current_jockey', '0,63...1'):
                     if not self.parts_full_name[1]:
                         self.parts_full_name[1] = '-S0T1000000000'
                     self.parts_full_name[1] = replace_count_match(
@@ -290,7 +290,6 @@ class DeviceFS(Device):
                         self.replace_current_jockey.get(value, '0'),
                         counter=9
                     )
-        # elif option_slug == 'fscable':
         elif option_slug in ['fscable', 'fscolorpump']:
             if value != 'Стандартный':
                 if not self.parts_full_name[2]:
@@ -390,8 +389,11 @@ class DeviceMPC(Device):
             'mpc8ai': [6, '6'],
             'mpc8ao': [7, '7']
         }
-        self.mpc_bypass = {'DOL': '-B1', 'SD': '-B2', 'SS': '-B3'}
-        self.mpc_filter = {'du/dt': '-UT', 'Синусоидальный': '-SW'}
+        # self.mpc_bypass = {'DOL': '-B1', 'SD': '-B2', 'SS': '-B3'}
+        self.mpc_dol_bypass = '-B1'
+        self.mpc_sd_bypass = '-B2'
+        # self.mpc_filter = {'du/dt': '-UT', 'Синусоидальный': '-SW'}
+        self.du_dt_filter = '-UT'
         self.input_protection = {'mpctransient': [1, 'T'], 'mpclightning': [1, 'L'], 'mpcphase': [2, 'P']}
         self.pump_protection = {
             'mpcelectrode': [1, 'DR'],
@@ -431,33 +433,27 @@ class DeviceMPC(Device):
     @cached_property
     def total_price(self):
         total_price = self.basic_product.price
-        neutral = getattr(self.basic_product, 'mpc_neutral', 1)
+        # neutral = getattr(self.basic_product, 'mpc_neutral', 1)
         for option_slug, value in self.value_selected_options.items():
             try:
-                # option_price = self.get_option_price(option_slug)
                 option_price = int(self.get_option_price(option_slug).price)
                 if option_slug in ['mpctransient', 'mpclightning']:
-                    # total_price += ((self.inputs + neutral) * option_price.price)
-                    total_price += ((self.inputs + neutral) * option_price)
-                elif option_slug == 'mpcvoltmeter':
-                    # total_price += (self.inputs * option_price.price)
+                    if self.inputs > 1:
+                        option_price = int(self.get_option_price(option_slug, 2).price)
                     total_price += (self.inputs * option_price)
-                elif option_slug == 'mpcammeter':
-                    # total_price += (self.value_pumps * option_price.price)
+                elif option_slug == 'mpcvoltmeter':
+                    total_price += (self.inputs * option_price)
+                elif option_slug in ['mpcammeter', 'mpcdolbypass', 'mpcsdbypass', 'mpcfilter']:
                     total_price += (self.value_pumps * option_price)
                 elif option_slug == 'mpccable':
-                    # total_price += (self.value_pumps * option_price.price * int(value))
                     total_price += (self.value_pumps * option_price * int(value))
                 elif option_slug in ['mpcdryprotec', 'mpcoutsensor', 'mpcbypass', 'mpcfilter']:
                     if value not in ['Реле', 'Датчик (1ОС)']:
-                        # total_price += option_price.price
                         total_price += option_price
                 elif option_slug in ['mpcexecution', 'mpctank']:
                     if value not in ['Стандартное', '24']:
-                        # total_price += option_price.price
                         total_price += option_price
                 else:
-                    # total_price += (option_price.price * int(value))
                     total_price += (option_price * int(value))
             except (OptionDoesNotExist, PumpsDoesNotFind):
                 raise
@@ -517,10 +513,12 @@ class DeviceMPC(Device):
                 self.option_part_name_1[0][0] = '-D'
                 option = self.dispatching[option_slug]
                 self.option_part_name_1[0][option[0]] = option[1]
-            elif option_slug == 'mpcbypass':
-                self.option_part_name_1[1] = self.mpc_bypass[value]
+            elif option_slug in ['mpcdolbypass', 'mpcsdbypass']:
+                # self.option_part_name_1[1] = self.mpc_bypass[value]
+                self.option_part_name_1[1] = self.mpc_dol_bypass if option_slug == 'mpcdolbypass' else self.mpc_sd_bypass
             elif option_slug == 'mpcfilter':
-                self.option_part_name_1[2] = self.mpc_filter[value]
+                # self.option_part_name_1[2] = self.mpc_filter[value]
+                self.option_part_name_1[2] = self.du_dt_filter
             elif option_slug in self.input_protection.keys():
                 self.option_part_name_1[3][0] = '-'
                 option = self.input_protection[option_slug]
@@ -564,10 +562,8 @@ class Pump(Device):
         total_price = self.basic_product.price
         for option_slug, value in self.value_selected_options.items():
             try:
-                # option_price = self.get_option_price(option_slug)
                 option_price = int(self.get_option_price(option_slug).price)
                 if value != 'EPDM':
-                    # total_price += option_price.price
                     total_price += option_price
             except OptionDoesNotExist:
                 raise
