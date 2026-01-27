@@ -239,8 +239,9 @@ class DeviceFS(Device):
         }
 
     def value_pumps(self):
+        pattern = r'\s([1-9])/([1-9])\s' if self.product_type.slug == 'nsfs' else r'\s([1-9])/([1-9])(?=x)'
         try:
-            return [int(elem) for elem in search_fragment(r'\s([1-9])/([1-9])\s', self.basic_product.name)]
+            return [int(elem) for elem in search_fragment(pattern, self.basic_product.name)]
         except TypeError:
             raise PumpsDoesNotFind(self.basic_product.name)
 
@@ -252,22 +253,22 @@ class DeviceFS(Device):
             value_pumps = main_pumps + reserve_pumps
             for option_slug, value in self.value_selected_options.items():
                 try:
-                    option_price = int(self.get_option_price(option_slug).price)
+                    option_price = self.get_option_price(option_slug).price
                     if option_slug == 'fsupcurrent':
-                        total_price += (self.valves * int(value) * option_price)
+                        total_price += (self.valves * int(value) * int(option_price))
                     elif option_slug == 'fssoftstarter':
                         value_soft_starter = main_pumps if value == 'Основные насосы' else value_pumps
-                        total_price += (value_soft_starter * option_price)
+                        total_price += (value_soft_starter * int(option_price))
                     elif option_slug == 'fscable':
-                        total_price += (value_pumps * option_price * int(value))
+                        total_price += (value_pumps * int(option_price) * int(value))
                     elif option_slug == 'fsjockey':
                         if value != 'Стандартный' and value != getattr(self.basic_product, 'fs_current_jockey', '0,63...1'):
-                            total_price += option_price
+                            total_price += int(option_price)
                     elif option_slug == 'fscolorpump':
                         if value != 'Стандартный':
-                            total_price += option_price
+                            total_price += int(option_price)
                     else:
-                        total_price += (option_price * int(value))
+                        total_price += (int(option_price) * int(value))
                 except ValueError:
                     total_price = 'по запросу'
                     break
@@ -355,7 +356,7 @@ class DeviceFS(Device):
             if option_slug in ['fscolorcabinet', 'fsnoneutral']:
                 matches_execution = re.findall(r'[A-Z0-9]', self.parts_full_name[1])
                 digit_execution = int(matches_execution[9])
-                replace = digit_execution + 1 if option_slug == 'colorcabinet' else digit_execution + 2
+                replace = digit_execution + 1 if option_slug == 'fscolorcabinet' else digit_execution + 2
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
                     self.parts_full_name[1],
@@ -436,25 +437,25 @@ class DeviceMPC(Device):
         # neutral = getattr(self.basic_product, 'mpc_neutral', 1)
         for option_slug, value in self.value_selected_options.items():
             try:
-                option_price = int(self.get_option_price(option_slug).price)
+                option_price = self.get_option_price(option_slug).price
                 if option_slug in ['mpctransient', 'mpclightning']:
                     if self.inputs > 1:
-                        option_price = int(self.get_option_price(option_slug, 2).price)
-                    total_price += (self.inputs * option_price)
+                        option_price = self.get_option_price(option_slug, 2).price
+                    total_price += (self.inputs * int(option_price))
                 elif option_slug == 'mpcvoltmeter':
-                    total_price += (self.inputs * option_price)
+                    total_price += (self.inputs * int(option_price))
                 elif option_slug in ['mpcammeter', 'mpcdolbypass', 'mpcsdbypass', 'mpcfilter']:
-                    total_price += (self.value_pumps * option_price)
+                    total_price += (self.value_pumps * int(option_price))
                 elif option_slug == 'mpccable':
-                    total_price += (self.value_pumps * option_price * int(value))
+                    total_price += (self.value_pumps * int(option_price) * int(value))
                 elif option_slug in ['mpcdryprotec', 'mpcoutsensor', 'mpcbypass', 'mpcfilter']:
                     if value not in ['Реле', 'Датчик (1ОС)']:
-                        total_price += option_price
+                        total_price += int(option_price)
                 elif option_slug in ['mpcexecution', 'mpctank']:
                     if value not in ['Стандартное', '24']:
-                        total_price += option_price
+                        total_price += int(option_price)
                 else:
-                    total_price += (option_price * int(value))
+                    total_price += (int(option_price) * int(value))
             except (OptionDoesNotExist, PumpsDoesNotFind):
                 raise
             except ValueError:
@@ -562,9 +563,9 @@ class Pump(Device):
         total_price = self.basic_product.price
         for option_slug, value in self.value_selected_options.items():
             try:
-                option_price = int(self.get_option_price(option_slug).price)
+                option_price = self.get_option_price(option_slug).price
                 if value != 'EPDM':
-                    total_price += option_price
+                    total_price += int(option_price)
             except OptionDoesNotExist:
                 raise
             except ValueError:
@@ -626,7 +627,7 @@ class PumpBO(Pump):
 
     def update_data(self, option_slug: str, value: str):
         if option_slug in ['boautomat', 'bosensor', 'bodiffsensor']:
-            execution_code = search_fragment(r'(?<= )([A-Z]+)(?=-)', self.parts_full_name[0])[0]
+            execution_code = search_fragment(r'(?<=-)([A-Z]+)(?=-)', self.parts_full_name[0])[0]
             execution_code_parts = [letter for letter in execution_code]
             if len(execution_code_parts) < 2:
                 execution_code_parts.append('')
@@ -637,10 +638,11 @@ class PumpBO(Pump):
                     execution_code_parts[1] = 'N'
                 elif option_slug == 'bodiffsensor':
                     execution_code_parts[1] = 'D'
-                self.parts_full_name[0] = re.sub(
-                    r'(?<= )([A-Z]+)(?=-)',
+                self.parts_full_name[0] = replace_count_match(
+                    r'(?<=-)([A-Z]+)(?=-)',
+                    self.parts_full_name[0],
                     ''.join(execution_code_parts),
-                    self.parts_full_name[0]
+                    counter=1
                 )
         elif option_slug == 'boelastomer':
             replace = 'E' if value == 'EPDM' else 'V'
@@ -654,7 +656,7 @@ class PumpKMG(Pump):
 
     def update_data(self, option_slug: str, value: str):
         if option_slug in ['kmgautomat', 'kmgsensor', 'kmgdiffsensor']:
-            execution_code = search_fragment(r'(?<= )([A-Z]+)(?=-)', self.parts_full_name[0])[0]
+            execution_code = search_fragment(r'(?<=-)([A-Z]+)(?=-)', self.parts_full_name[0])[0]
             execution_code_parts = [letter for letter in execution_code]
             if len(execution_code_parts) < 2:
                 execution_code_parts.append('')
@@ -665,10 +667,11 @@ class PumpKMG(Pump):
                     execution_code_parts[1] = 'N'
                 elif option_slug == 'kmgdiffsensor':
                     execution_code_parts[1] = 'D'
-                self.parts_full_name[0] = re.sub(
-                    r'(?<= )([A-Z]+)(?=-)',
+                self.parts_full_name[0] = replace_count_match(
+                    r'(?<=-)([A-Z]+)(?=-)',
+                    self.parts_full_name[0],
                     ''.join(execution_code_parts),
-                    self.parts_full_name[0]
+                    counter=1
                 )
         elif option_slug == 'kmgelastomer':
             replace = 'E' if value == 'EPDM' else 'V'

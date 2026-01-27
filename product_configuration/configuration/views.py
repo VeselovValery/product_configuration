@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import math
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -84,35 +85,28 @@ def index(request):
         try:
             if processor.validate_constraints:
                 total_price = processor.total_price  # Цена конечного продукта с опциями без НДС
-                total_price_vat = total_price * VALUE_ADDED_TAX if type(total_price) is int else 'по запросу'
+                total_price_vat = math.floor(
+                    total_price * VALUE_ADDED_TAX + 0.5
+                ) if type(total_price) is int else 'по запросу'
                 # Формирование наименования опционального изделия
                 full_name = processor.full_name
                 # Запись данных о расчете
-                config = Configuration.objects.create(
-                    product_type=basic_product.product_type,
-                    basic_product=basic_product,
-                    name=full_name,
-                    cost_without_vat=total_price,
-                    cost_with_vat=total_price_vat,
-                    author=request.user,
-                )
-                selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in processor.value_selected_options.items()]
-                config.options.set(selected_options)
-                config.options_value = [
-                    f'* {option.name} - {processor.value_selected_options[option.slug]}' for option in selected_options
-                ]
-                config.save()
-                if full_name != basic_product.name:
-                    options_device, created_options_device = OptionPartNumber.objects.get_or_create(
-                        name=full_name,
-                        defaults={
-                            'name': full_name,
-                            'part_number': 'по запросу'
-                        }
-                    )
-                    part_number = 'по запросу' if created_options_device else options_device.part_number
-                else:
-                    part_number = basic_product.part_number
+                # config = Configuration.objects.create(
+                #     product_type=basic_product.product_type,
+                #     basic_product=basic_product,
+                #     name=full_name,
+                #     cost_without_vat=total_price,
+                #     cost_with_vat=total_price_vat,
+                #     author=request.user,
+                # )
+                # selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in processor.value_selected_options.items()]
+                # config.options.set(selected_options)
+                # config.options_value = [
+                #     f'* {option.name} - {processor.value_selected_options[option.slug]}' for option in selected_options
+                # ]
+                # config.save()
+                options_part_number = OptionPartNumber.objects.filter(name=full_name).first()
+                part_number = options_part_number.part_number if options_part_number else 'по запросу'
                 # Возврат названия и цены продукции
                 return JsonResponse({
                     'full_name': full_name,
@@ -154,7 +148,7 @@ def autocomplete_base_products(request):
         return JsonResponse([], safe=False)
     products = BasicPrice.objects.filter(
         product_type_id=type_slug
-    ).values_list('name', flat=True)[:200]
+    ).values_list('name', flat=True)
     norm_query = normalize_for_search(query)
     matched = []
     for name in products:
