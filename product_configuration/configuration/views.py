@@ -91,22 +91,25 @@ def index(request):
                 # Формирование наименования опционального изделия
                 full_name = processor.full_name
                 # Запись данных о расчете
-                # config = Configuration.objects.create(
-                #     product_type=basic_product.product_type,
-                #     basic_product=basic_product,
-                #     name=full_name,
-                #     cost_without_vat=total_price,
-                #     cost_with_vat=total_price_vat,
-                #     author=request.user,
-                # )
-                # selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in processor.value_selected_options.items()]
-                # config.options.set(selected_options)
-                # config.options_value = [
-                #     f'* {option.name} - {processor.value_selected_options[option.slug]}' for option in selected_options
-                # ]
-                # config.save()
-                options_part_number = OptionPartNumber.objects.filter(name=full_name).first()
-                part_number = options_part_number.part_number if options_part_number else 'по запросу'
+                config = Configuration.objects.create(
+                    product_type=basic_product.product_type,
+                    basic_product=basic_product,
+                    name=full_name,
+                    cost_without_vat=total_price,
+                    cost_with_vat=total_price_vat,
+                    author=request.user,
+                )
+                selected_options = [OptionsProfile.objects.get(slug=slug) for slug, value in processor.value_selected_options.items()]
+                config.options.set(selected_options)
+                config.options_value = [
+                    f'* {option.name} - {processor.value_selected_options[option.slug]}' for option in selected_options
+                ]
+                config.save()
+                if full_name == basic_product.name:
+                    part_number = basic_product.part_number
+                else:
+                    options_part_number = OptionPartNumber.objects.filter(name=full_name).first()
+                    part_number = options_part_number.part_number if options_part_number else 'по запросу'
                 # Возврат названия и цены продукции
                 return JsonResponse({
                     'full_name': full_name,

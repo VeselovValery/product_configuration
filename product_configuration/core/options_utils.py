@@ -364,6 +364,13 @@ class DeviceFS(Device):
                     counter=10
                 )
             if option_slug == 'fssoftstarter':
+                if self.product_type.slug == 'shupnfs':
+                    self.parts_full_name[0] = replace_count_match(
+                        r'\b(DOL|SD)(?=-)',
+                        self.parts_full_name[0],
+                        'SS',
+                        counter=1
+                    )
                 replace = 'M' if value == 'Основные насосы' else 'A'
                 self.parts_full_name[1] = replace_count_match(
                     r'[A-Z0-9]',
@@ -425,7 +432,7 @@ class DeviceMPC(Device):
 
     @cached_property
     def value_pumps(self):
-        pattern = r'Hydro MPC\s+([0-9]+)\s+BM' if self.product_type.slug == 'hydrompc' else r'ШУТП-MPC-B-([0-9]+)x'
+        pattern = r'Hydro MPC\s+([0-9]+)\s+BM' if self.product_type.slug == 'hydrompc' else r'ШУТП MPC-B ([0-9]+)x'
         try:
             return int(search_fragment(pattern, self.basic_product.name)[0])
         except TypeError:
@@ -434,7 +441,6 @@ class DeviceMPC(Device):
     @cached_property
     def total_price(self):
         total_price = self.basic_product.price
-        # neutral = getattr(self.basic_product, 'mpc_neutral', 1)
         for option_slug, value in self.value_selected_options.items():
             try:
                 option_price = self.get_option_price(option_slug).price
@@ -515,10 +521,8 @@ class DeviceMPC(Device):
                 option = self.dispatching[option_slug]
                 self.option_part_name_1[0][option[0]] = option[1]
             elif option_slug in ['mpcdolbypass', 'mpcsdbypass']:
-                # self.option_part_name_1[1] = self.mpc_bypass[value]
                 self.option_part_name_1[1] = self.mpc_dol_bypass if option_slug == 'mpcdolbypass' else self.mpc_sd_bypass
             elif option_slug == 'mpcfilter':
-                # self.option_part_name_1[2] = self.mpc_filter[value]
                 self.option_part_name_1[2] = self.du_dt_filter
             elif option_slug in self.input_protection.keys():
                 self.option_part_name_1[3][0] = '-'
